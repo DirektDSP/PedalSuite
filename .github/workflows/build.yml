@@ -148,6 +148,9 @@ jobs:
         shell: bash
         run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
 
+      - name: Install NSIS
+        run: choco install nsis --yes
+
       - name: Build NSIS installer
         uses: joncloud/makensis-action@v4
         with:
