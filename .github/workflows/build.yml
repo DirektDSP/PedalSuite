@@ -16,23 +16,89 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Detect which plugins need rebuilding
+  # Parse commit flags and detect which plugins need rebuilding
   # ---------------------------------------------------------------------------
   changes:
     name: Detect changes
     runs-on: ubuntu-latest
     outputs:
       plugins: ${{ steps.filter.outputs.plugins }}
+      run_linux: ${{ steps.flags.outputs.run_linux }}
+      run_windows: ${{ steps.flags.outputs.run_windows }}
+      run_mac: ${{ steps.flags.outputs.run_mac }}
+      no_moonbase: ${{ steps.flags.outputs.no_moonbase }}
+      build_type: ${{ steps.flags.outputs.build_type }}
+      skip: ${{ steps.flags.outputs.skip }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
+      - name: Parse commit flags
+        id: flags
+        shell: bash
+        run: |
+          MSG=$(git log -1 --pretty=%B)
+          echo "Commit message: $MSG"
+
+          # [no-build] — skip everything
+          if echo "$MSG" | grep -qi '\[no-build\]'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "run_linux=false" >> "$GITHUB_OUTPUT"
+            echo "run_windows=false" >> "$GITHUB_OUTPUT"
+            echo "run_mac=false" >> "$GITHUB_OUTPUT"
+            echo "no_moonbase=false" >> "$GITHUB_OUTPUT"
+            echo "build_type=Release" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+          # [no-mb-build] — disable moonbase, use Debug
+          if echo "$MSG" | grep -qi '\[no-mb-build\]'; then
+            echo "no_moonbase=true" >> "$GITHUB_OUTPUT"
+            echo "build_type=Debug" >> "$GITHUB_OUTPUT"
+          else
+            echo "no_moonbase=false" >> "$GITHUB_OUTPUT"
+            echo "build_type=Release" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Platform flags — if any platform flag is present, only run those
+          HAS_PLATFORM=false
+          LINUX=false; WIN=false; MAC=false
+
+          if echo "$MSG" | grep -qi '\[all-build\]'; then
+            LINUX=true; WIN=true; MAC=true; HAS_PLATFORM=true
+          fi
+          if echo "$MSG" | grep -qi '\[linux-build\]'; then
+            LINUX=true; HAS_PLATFORM=true
+          fi
+          if echo "$MSG" | grep -qi '\[win-build\]'; then
+            WIN=true; HAS_PLATFORM=true
+          fi
+          if echo "$MSG" | grep -qi '\[mac-build\]'; then
+            MAC=true; HAS_PLATFORM=true
+          fi
+
+          # Default: linux + windows (no mac yet)
+          if [[ "$HAS_PLATFORM" == "false" ]]; then
+            LINUX=true; WIN=true
+          fi
+
+          echo "run_linux=$LINUX" >> "$GITHUB_OUTPUT"
+          echo "run_windows=$WIN" >> "$GITHUB_OUTPUT"
+          echo "run_mac=$MAC" >> "$GITHUB_OUTPUT"
+
       - name: Determine changed plugins
         id: filter
         shell: bash
         run: |
+          if [[ "${{ steps.flags.outputs.skip }}" == "true" ]]; then
+            echo 'plugins=[]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo 'plugins=["Mechanica","Hydraulica","Pneumatica","Electrica"]' >> "$GITHUB_OUTPUT"
             exit 0
@@ -45,6 +111,13 @@ jobs:
 
           # If BASE_SHA is empty or zeros (first push), build everything
           if [[ -z "$BASE_SHA" || "$BASE_SHA" == "0000000000000000000000000000000000000000" ]]; then
+            echo 'plugins=["Mechanica","Hydraulica","Pneumatica","Electrica"]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # [all-build] forces all plugins
+          MSG=$(git log -1 --pretty=%B)
+          if echo "$MSG" | grep -qi '\[all-build\]'; then
             echo 'plugins=["Mechanica","Hydraulica","Pneumatica","Electrica"]' >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -78,7 +151,10 @@ jobs:
   build-linux:
     name: Linux – ${{ matrix.plugin }}
     needs: changes
-    if: needs.changes.outputs.plugins != '[]'
+    if: |
+      needs.changes.outputs.skip != 'true' &&
+      needs.changes.outputs.run_linux == 'true' &&
+      needs.changes.outputs.plugins != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -91,13 +167,16 @@ jobs:
           submodules: recursive
           token: ${{ secrets.PAT }}
 
-      - name: Recreate moonbase config
+      - name: Recreate moonbase configs
+        if: needs.changes.outputs.no_moonbase != 'true'
         run: |
-          UPPER=$(echo "${{ matrix.plugin }}" | tr '[:lower:]' '[:upper:]')
-          SECRET_VAR="${UPPER}_CONFIG_B64"
-          eval SECRET_VALUE="\$$SECRET_VAR"
-          echo "$SECRET_VALUE" | base64 --decode > "${{ matrix.plugin }}/moonbase_api_config.json"
-          cp "${{ matrix.plugin }}/moonbase_api_config.json" "${{ matrix.plugin }}/assets/moonbase_api_config.json"
+          for pedal in Electrica Hydraulica Mechanica Pneumatica; do
+            UPPER=$(echo "$pedal" | tr '[:lower:]' '[:upper:]')
+            SECRET_VAR="${UPPER}_CONFIG_B64"
+            eval SECRET_VALUE="\$$SECRET_VAR"
+            echo "$SECRET_VALUE" | base64 --decode > "${pedal}/moonbase_api_config.json"
+            cp "${pedal}/moonbase_api_config.json" "${pedal}/assets/moonbase_api_config.json"
+          done
         env:
           ELECTRICA_CONFIG_B64: ${{ secrets.ELECTRICA_CONFIG_B64 }}
           HYDRAULICA_CONFIG_B64: ${{ secrets.HYDRAULICA_CONFIG_B64 }}
@@ -117,15 +196,20 @@ jobs:
             ladspa-sdk libgl1-mesa-dev
 
       - name: Configure
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+        run: |
+          CMAKE_FLAGS="-G Ninja -DCMAKE_BUILD_TYPE=${{ needs.changes.outputs.build_type }}"
+          if [[ "${{ needs.changes.outputs.no_moonbase }}" == "true" ]]; then
+            CMAKE_FLAGS="$CMAKE_FLAGS -DPEDALSUITE_DISABLE_MOONBASE=ON"
+          fi
+          cmake -B build $CMAKE_FLAGS
 
       - name: Build
-        run: cmake --build build --config ${{ env.BUILD_TYPE }} --target ${{ matrix.plugin }}_Standalone ${{ matrix.plugin }}_VST3 ${{ matrix.plugin }}_CLAP
+        run: cmake --build build --config ${{ needs.changes.outputs.build_type }} --target ${{ matrix.plugin }}_Standalone ${{ matrix.plugin }}_VST3 ${{ matrix.plugin }}_CLAP
 
       - name: Collect artifacts
         run: |
           mkdir -p artifacts
-          base="build/${{ matrix.plugin }}/${{ matrix.plugin }}_artefacts/${BUILD_TYPE}"
+          base="build/${{ matrix.plugin }}/${{ matrix.plugin }}_artefacts/${{ needs.changes.outputs.build_type }}"
           if [ -d "${base}/VST3" ]; then cp -r "${base}/VST3/"*.vst3 artifacts/ 2>/dev/null || true; fi
           if [ -d "${base}/CLAP" ]; then cp "${base}/CLAP/"*.clap artifacts/ 2>/dev/null || true; fi
           if [ -d "${base}/Standalone" ]; then cp "${base}/Standalone/"* artifacts/ 2>/dev/null || true; fi
@@ -144,7 +228,10 @@ jobs:
   build-windows:
     name: Windows – ${{ matrix.plugin }}
     needs: changes
-    if: needs.changes.outputs.plugins != '[]'
+    if: |
+      needs.changes.outputs.skip != 'true' &&
+      needs.changes.outputs.run_windows == 'true' &&
+      needs.changes.outputs.plugins != '[]'
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -157,14 +244,17 @@ jobs:
           submodules: recursive
           token: ${{ secrets.PAT }}
 
-      - name: Recreate moonbase config
+      - name: Recreate moonbase configs
+        if: needs.changes.outputs.no_moonbase != 'true'
         shell: bash
         run: |
-          UPPER=$(echo "${{ matrix.plugin }}" | tr '[:lower:]' '[:upper:]')
-          SECRET_VAR="${UPPER}_CONFIG_B64"
-          eval SECRET_VALUE="\$$SECRET_VAR"
-          echo "$SECRET_VALUE" | base64 --decode > "${{ matrix.plugin }}/moonbase_api_config.json"
-          cp "${{ matrix.plugin }}/moonbase_api_config.json" "${{ matrix.plugin }}/assets/moonbase_api_config.json"
+          for pedal in Electrica Hydraulica Mechanica Pneumatica; do
+            UPPER=$(echo "$pedal" | tr '[:lower:]' '[:upper:]')
+            SECRET_VAR="${UPPER}_CONFIG_B64"
+            eval SECRET_VALUE="\$$SECRET_VAR"
+            echo "$SECRET_VALUE" | base64 --decode > "${pedal}/moonbase_api_config.json"
+            cp "${pedal}/moonbase_api_config.json" "${pedal}/assets/moonbase_api_config.json"
+          done
         env:
           ELECTRICA_CONFIG_B64: ${{ secrets.ELECTRICA_CONFIG_B64 }}
           HYDRAULICA_CONFIG_B64: ${{ secrets.HYDRAULICA_CONFIG_B64 }}
@@ -172,16 +262,22 @@ jobs:
           PNEUMATICA_CONFIG_B64: ${{ secrets.PNEUMATICA_CONFIG_B64 }}
 
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+        shell: bash
+        run: |
+          CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=${{ needs.changes.outputs.build_type }}"
+          if [[ "${{ needs.changes.outputs.no_moonbase }}" == "true" ]]; then
+            CMAKE_FLAGS="$CMAKE_FLAGS -DPEDALSUITE_DISABLE_MOONBASE=ON"
+          fi
+          cmake -B build $CMAKE_FLAGS
 
       - name: Build
-        run: cmake --build build --config ${{ env.BUILD_TYPE }} --target ${{ matrix.plugin }}_Standalone ${{ matrix.plugin }}_VST3 ${{ matrix.plugin }}_CLAP
+        run: cmake --build build --config ${{ needs.changes.outputs.build_type }} --target ${{ matrix.plugin }}_Standalone ${{ matrix.plugin }}_VST3 ${{ matrix.plugin }}_CLAP
 
       - name: Collect artifacts
         shell: bash
         run: |
           mkdir -p artifacts
-          base="build/${{ matrix.plugin }}/${{ matrix.plugin }}_artefacts/${BUILD_TYPE}"
+          base="build/${{ matrix.plugin }}/${{ matrix.plugin }}_artefacts/${{ needs.changes.outputs.build_type }}"
           if [ -d "${base}/VST3" ]; then cp -r "${base}/VST3/"*.vst3 artifacts/ 2>/dev/null || true; fi
           if [ -d "${base}/CLAP" ]; then cp "${base}/CLAP/"*.clap artifacts/ 2>/dev/null || true; fi
           if [ -d "${base}/Standalone" ]; then cp "${base}/Standalone/"*.exe artifacts/ 2>/dev/null || true; fi
@@ -194,11 +290,84 @@ jobs:
           retention-days: 30
 
   # ---------------------------------------------------------------------------
+  # macOS builds — temporary, enabled via [mac-build] or [all-build]
+  # ---------------------------------------------------------------------------
+  build-mac:
+    name: macOS – ${{ matrix.plugin }}
+    needs: changes
+    if: |
+      needs.changes.outputs.skip != 'true' &&
+      needs.changes.outputs.run_mac == 'true' &&
+      needs.changes.outputs.plugins != '[]'
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: ${{ fromJson(needs.changes.outputs.plugins) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.PAT }}
+
+      - name: Install dependencies
+        run: brew install ninja
+
+      - name: Recreate moonbase configs
+        if: needs.changes.outputs.no_moonbase != 'true'
+        run: |
+          for pedal in Electrica Hydraulica Mechanica Pneumatica; do
+            UPPER=$(echo "$pedal" | tr '[:lower:]' '[:upper:]')
+            SECRET_VAR="${UPPER}_CONFIG_B64"
+            eval SECRET_VALUE="\$$SECRET_VAR"
+            echo "$SECRET_VALUE" | base64 --decode > "${pedal}/moonbase_api_config.json"
+            cp "${pedal}/moonbase_api_config.json" "${pedal}/assets/moonbase_api_config.json"
+          done
+        env:
+          ELECTRICA_CONFIG_B64: ${{ secrets.ELECTRICA_CONFIG_B64 }}
+          HYDRAULICA_CONFIG_B64: ${{ secrets.HYDRAULICA_CONFIG_B64 }}
+          MECHANICA_CONFIG_B64: ${{ secrets.MECHANICA_CONFIG_B64 }}
+          PNEUMATICA_CONFIG_B64: ${{ secrets.PNEUMATICA_CONFIG_B64 }}
+
+      - name: Configure
+        run: |
+          CMAKE_FLAGS="-G Ninja -DCMAKE_BUILD_TYPE=${{ needs.changes.outputs.build_type }} -DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"
+          if [[ "${{ needs.changes.outputs.no_moonbase }}" == "true" ]]; then
+            CMAKE_FLAGS="$CMAKE_FLAGS -DPEDALSUITE_DISABLE_MOONBASE=ON"
+          fi
+          cmake -B build $CMAKE_FLAGS
+
+      - name: Build
+        run: cmake --build build --config ${{ needs.changes.outputs.build_type }} --target ${{ matrix.plugin }}_Standalone ${{ matrix.plugin }}_VST3 ${{ matrix.plugin }}_CLAP ${{ matrix.plugin }}_AU
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifacts
+          base="build/${{ matrix.plugin }}/${{ matrix.plugin }}_artefacts/${{ needs.changes.outputs.build_type }}"
+          if [ -d "${base}/VST3" ]; then cp -r "${base}/VST3/"*.vst3 artifacts/ 2>/dev/null || true; fi
+          if [ -d "${base}/CLAP" ]; then cp "${base}/CLAP/"*.clap artifacts/ 2>/dev/null || true; fi
+          if [ -d "${base}/AU" ]; then cp -r "${base}/AU/"*.component artifacts/ 2>/dev/null || true; fi
+          if [ -d "${base}/Standalone" ]; then cp -r "${base}/Standalone/"*.app artifacts/ 2>/dev/null || true; fi
+          ls -laR artifacts/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.plugin }}-macOS-${{ github.sha }}
+          path: artifacts/
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
   # Windows installer — runs after all Windows plugin builds
   # ---------------------------------------------------------------------------
   installer-windows:
     name: Windows Installer
     needs: [changes, build-windows]
+    if: |
+      needs.changes.outputs.skip != 'true' &&
+      needs.changes.outputs.run_windows == 'true' &&
+      needs.changes.outputs.no_moonbase != 'true'
     runs-on: windows-latest
     steps:
       - name: Checkout (for packaging scripts)
