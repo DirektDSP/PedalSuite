@@ -42,22 +42,22 @@ SectionGroup "VST3 Plugins" SecVST3
 
 Section "Mechanica VST3" SecMechanicaVST3
   SetOutPath "$COMMONFILES64\VST3\DirektDSP"
-  File /r "${ARTIFACTS_DIR}\Mechanica.vst3"
+  File /nonfatal /r "${ARTIFACTS_DIR}\Mechanica.vst3"
 SectionEnd
 
 Section "Hydraulica VST3" SecHydraulicaVST3
   SetOutPath "$COMMONFILES64\VST3\DirektDSP"
-  File /r "${ARTIFACTS_DIR}\Hydraulica.vst3"
+  File /nonfatal /r "${ARTIFACTS_DIR}\Hydraulica.vst3"
 SectionEnd
 
 Section "Pneumatica VST3" SecPneumaticaVST3
   SetOutPath "$COMMONFILES64\VST3\DirektDSP"
-  File /r "${ARTIFACTS_DIR}\Pneumatica.vst3"
+  File /nonfatal /r "${ARTIFACTS_DIR}\Pneumatica.vst3"
 SectionEnd
 
 Section "Electrica VST3" SecElectricaVST3
   SetOutPath "$COMMONFILES64\VST3\DirektDSP"
-  File /r "${ARTIFACTS_DIR}\Electrica.vst3"
+  File /nonfatal /r "${ARTIFACTS_DIR}\Electrica.vst3"
 SectionEnd
 
 SectionGroupEnd
@@ -70,22 +70,22 @@ SectionGroup "CLAP Plugins" SecCLAP
 
 Section "Mechanica CLAP" SecMechanicaCLAP
   SetOutPath "$COMMONFILES64\CLAP\DirektDSP"
-  File "${ARTIFACTS_DIR}\Mechanica.clap"
+  File /nonfatal "${ARTIFACTS_DIR}\Mechanica.clap"
 SectionEnd
 
 Section "Hydraulica CLAP" SecHydraulicaCLAP
   SetOutPath "$COMMONFILES64\CLAP\DirektDSP"
-  File "${ARTIFACTS_DIR}\Hydraulica.clap"
+  File /nonfatal "${ARTIFACTS_DIR}\Hydraulica.clap"
 SectionEnd
 
 Section "Pneumatica CLAP" SecPneumaticaCLAP
   SetOutPath "$COMMONFILES64\CLAP\DirektDSP"
-  File "${ARTIFACTS_DIR}\Pneumatica.clap"
+  File /nonfatal "${ARTIFACTS_DIR}\Pneumatica.clap"
 SectionEnd
 
 Section "Electrica CLAP" SecElectricaCLAP
   SetOutPath "$COMMONFILES64\CLAP\DirektDSP"
-  File "${ARTIFACTS_DIR}\Electrica.clap"
+  File /nonfatal "${ARTIFACTS_DIR}\Electrica.clap"
 SectionEnd
 
 SectionGroupEnd
@@ -98,22 +98,22 @@ SectionGroup "Standalone Apps" SecStandalone
 
 Section "Mechanica Standalone" SecMechanicaSA
   SetOutPath "$INSTDIR"
-  File "${ARTIFACTS_DIR}\Mechanica.exe"
+  File /nonfatal "${ARTIFACTS_DIR}\Mechanica.exe"
 SectionEnd
 
 Section "Hydraulica Standalone" SecHydraulicaSA
   SetOutPath "$INSTDIR"
-  File "${ARTIFACTS_DIR}\Hydraulica.exe"
+  File /nonfatal "${ARTIFACTS_DIR}\Hydraulica.exe"
 SectionEnd
 
 Section "Pneumatica Standalone" SecPneumaticaSA
   SetOutPath "$INSTDIR"
-  File "${ARTIFACTS_DIR}\Pneumatica.exe"
+  File /nonfatal "${ARTIFACTS_DIR}\Pneumatica.exe"
 SectionEnd
 
 Section "Electrica Standalone" SecElectricaSA
   SetOutPath "$INSTDIR"
-  File "${ARTIFACTS_DIR}\Electrica.exe"
+  File /nonfatal "${ARTIFACTS_DIR}\Electrica.exe"
 SectionEnd
 
 SectionGroupEnd
