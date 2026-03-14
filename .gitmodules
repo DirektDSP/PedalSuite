@@ -1,0 +1,31 @@
+[submodule "JUCE"]
+	path = JUCE
+	url = https://github.com/juce-framework/JUCE/
+	branch = develop
+	ignore = dirty
+[submodule "modules/melatonin_inspector"]
+	path = modules/melatonin_inspector
+	url = https://github.com/sudara/melatonin_inspector.git
+	branch = main
+	ignore = dirty
+[submodule "cmake"]
+	path = cmake
+	url = https://github.com/sudara/cmake-includes.git
+	branch = main
+	ignore = dirty
+[submodule "modules/clap-juce-extensions"]
+	path = modules/clap-juce-extensions
+	url = https://github.com/free-audio/clap-juce-extensions.git
+	branch = main
+	ignore = dirty
+[submodule "modules/moonbase_JUCEClient"]
+	path = modules/moonbase_JUCEClient
+	url = https://github.com/Moonbase-sh/moonbase_JUCEClient
+	branch = main
+	ignore = dirty
+[submodule "modules/cycfi_q"]
+	path = modules/cycfi_q
+	url = https://github.com/cycfi/q.git
+[submodule "modules/cycfi_infra"]
+	path = modules/cycfi_infra
+	url = https://github.com/cycfi/infra.git

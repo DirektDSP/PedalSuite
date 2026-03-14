@@ -1,0 +1,62 @@
+# Build
+build/
+cmake-build-*/
+out/
+
+# IDE
+.idea/
+.vs/
+.vscode/
+*.xcodeproj/
+*.xcworkspace/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# CI / env
+.env
+*.env.local
+
+# Compiled artifacts
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.vst3
+*.clap
+*.component
+*.appex
+
+# Installer output
+*.nsi.bak
+artifacts/
+
+# Crash / debug
+*.dmp
+*.log
+crash_*.txt
+
+# User / session configs
+*.user
+*.suo
+*.cachefile
+compile_commands.json
+
+# Moonbase configs (contain product keys)
+moonbase_api_config.json
+
+# Clangd / tool caches
+.cache/
+
+# Temporary artifacts
+compass_artifact_*.md
