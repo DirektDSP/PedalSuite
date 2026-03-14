@@ -7,13 +7,83 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   BUILD_TYPE: Release
 
 jobs:
-  build-linux:
-    name: Linux
+  # ---------------------------------------------------------------------------
+  # Detect which plugins need rebuilding
+  # ---------------------------------------------------------------------------
+  changes:
+    name: Detect changes
     runs-on: ubuntu-latest
+    outputs:
+      plugins: ${{ steps.filter.outputs.plugins }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Determine changed plugins
+        id: filter
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo 'plugins=["Mechanica","Hydraulica","Pneumatica","Electrica"]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BASE_SHA="${{ github.event.before }}"
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          fi
+
+          # If BASE_SHA is empty or zeros (first push), build everything
+          if [[ -z "$BASE_SHA" || "$BASE_SHA" == "0000000000000000000000000000000000000000" ]]; then
+            echo 'plugins=["Mechanica","Hydraulica","Pneumatica","Electrica"]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CHANGED=$(git diff --name-only "$BASE_SHA" HEAD 2>/dev/null || echo "FULL")
+
+          # If shared infra changed, build everything
+          if echo "$CHANGED" | grep -qE '^(CMakeLists\.txt|cmake/|cmake-local/|modules/|JUCE/|VERSION)'; then
+            echo 'plugins=["Mechanica","Hydraulica","Pneumatica","Electrica"]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Otherwise, only build changed plugins
+          PLUGINS="[]"
+          for pedal in Mechanica Hydraulica Pneumatica Electrica; do
+            if echo "$CHANGED" | grep -q "^${pedal}/"; then
+              PLUGINS=$(echo "$PLUGINS" | sed "s/\]$/,\"${pedal}\"\]/" | sed 's/\[,/[/')
+            fi
+          done
+
+          # Fallback: if nothing matched but files changed, build all
+          if [[ "$PLUGINS" == "[]" ]]; then
+            echo 'plugins=["Mechanica","Hydraulica","Pneumatica","Electrica"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "plugins=$PLUGINS" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Linux builds — one per changed plugin
+  # ---------------------------------------------------------------------------
+  build-linux:
+    name: Linux – ${{ matrix.plugin }}
+    needs: changes
+    if: needs.changes.outputs.plugins != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: ${{ fromJson(needs.changes.outputs.plugins) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,15 +91,13 @@ jobs:
           submodules: recursive
           token: ${{ secrets.PAT }}
 
-      - name: Recreate moonbase_api_config.json files
+      - name: Recreate moonbase config
         run: |
-          for pedal in Electrica Hydraulica Mechanica Pneumatica; do
-            UPPER=$(echo "$pedal" | tr '[:lower:]' '[:upper:]')
-            SECRET_VAR="${UPPER}_CONFIG_B64"
-            eval SECRET_VALUE="\$$SECRET_VAR"
-            echo "$SECRET_VALUE" | base64 --decode > "${pedal}/moonbase_api_config.json"
-            cp "${pedal}/moonbase_api_config.json" "${pedal}/assets/moonbase_api_config.json"
-          done
+          UPPER=$(echo "${{ matrix.plugin }}" | tr '[:lower:]' '[:upper:]')
+          SECRET_VAR="${UPPER}_CONFIG_B64"
+          eval SECRET_VALUE="\$$SECRET_VAR"
+          echo "$SECRET_VALUE" | base64 --decode > "${{ matrix.plugin }}/moonbase_api_config.json"
+          cp "${{ matrix.plugin }}/moonbase_api_config.json" "${{ matrix.plugin }}/assets/moonbase_api_config.json"
         env:
           ELECTRICA_CONFIG_B64: ${{ secrets.ELECTRICA_CONFIG_B64 }}
           HYDRAULICA_CONFIG_B64: ${{ secrets.HYDRAULICA_CONFIG_B64 }}
@@ -52,44 +120,36 @@ jobs:
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
 
       - name: Build
-        run: cmake --build build --config ${{ env.BUILD_TYPE }}
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --target ${{ matrix.plugin }}_Standalone ${{ matrix.plugin }}_VST3 ${{ matrix.plugin }}_CLAP
 
       - name: Collect artifacts
         run: |
-          VERSION=$(cat VERSION)
           mkdir -p artifacts
-
-          for pedal in Mechanica Hydraulica Pneumatica Electrica; do
-            base="build/${pedal}/${pedal}_artefacts/${BUILD_TYPE}"
-
-            # VST3 bundles
-            if [ -d "${base}/VST3" ]; then
-              cp -r "${base}/VST3/"*.vst3 artifacts/ 2>/dev/null || true
-            fi
-
-            # CLAP
-            if [ -d "${base}/CLAP" ]; then
-              cp "${base}/CLAP/"*.clap artifacts/ 2>/dev/null || true
-            fi
-
-            # Standalone
-            if [ -d "${base}/Standalone" ]; then
-              cp "${base}/Standalone/"* artifacts/ 2>/dev/null || true
-            fi
-          done
-
+          base="build/${{ matrix.plugin }}/${{ matrix.plugin }}_artefacts/${BUILD_TYPE}"
+          if [ -d "${base}/VST3" ]; then cp -r "${base}/VST3/"*.vst3 artifacts/ 2>/dev/null || true; fi
+          if [ -d "${base}/CLAP" ]; then cp "${base}/CLAP/"*.clap artifacts/ 2>/dev/null || true; fi
+          if [ -d "${base}/Standalone" ]; then cp "${base}/Standalone/"* artifacts/ 2>/dev/null || true; fi
           ls -laR artifacts/
 
-      - name: Upload Linux artifacts
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: PedalSuite-Linux-${{ github.sha }}
+          name: ${{ matrix.plugin }}-Linux-${{ github.sha }}
           path: artifacts/
           retention-days: 30
 
+  # ---------------------------------------------------------------------------
+  # Windows builds — one per changed plugin
+  # ---------------------------------------------------------------------------
   build-windows:
-    name: Windows
+    name: Windows – ${{ matrix.plugin }}
+    needs: changes
+    if: needs.changes.outputs.plugins != '[]'
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: ${{ fromJson(needs.changes.outputs.plugins) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -97,16 +157,14 @@ jobs:
           submodules: recursive
           token: ${{ secrets.PAT }}
 
-      - name: Recreate moonbase_api_config.json files
+      - name: Recreate moonbase config
         shell: bash
         run: |
-          for pedal in Electrica Hydraulica Mechanica Pneumatica; do
-            UPPER=$(echo "$pedal" | tr '[:lower:]' '[:upper:]')
-            SECRET_VAR="${UPPER}_CONFIG_B64"
-            eval SECRET_VALUE="\$$SECRET_VAR"
-            echo "$SECRET_VALUE" | base64 --decode > "${pedal}/moonbase_api_config.json"
-            cp "${pedal}/moonbase_api_config.json" "${pedal}/assets/moonbase_api_config.json"
-          done
+          UPPER=$(echo "${{ matrix.plugin }}" | tr '[:lower:]' '[:upper:]')
+          SECRET_VAR="${UPPER}_CONFIG_B64"
+          eval SECRET_VALUE="\$$SECRET_VAR"
+          echo "$SECRET_VALUE" | base64 --decode > "${{ matrix.plugin }}/moonbase_api_config.json"
+          cp "${{ matrix.plugin }}/moonbase_api_config.json" "${{ matrix.plugin }}/assets/moonbase_api_config.json"
         env:
           ELECTRICA_CONFIG_B64: ${{ secrets.ELECTRICA_CONFIG_B64 }}
           HYDRAULICA_CONFIG_B64: ${{ secrets.HYDRAULICA_CONFIG_B64 }}
@@ -117,31 +175,45 @@ jobs:
         run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
 
       - name: Build
-        run: cmake --build build --config ${{ env.BUILD_TYPE }}
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --target ${{ matrix.plugin }}_Standalone ${{ matrix.plugin }}_VST3 ${{ matrix.plugin }}_CLAP
 
       - name: Collect artifacts
         shell: bash
         run: |
-          mkdir -p artifacts/windows
+          mkdir -p artifacts
+          base="build/${{ matrix.plugin }}/${{ matrix.plugin }}_artefacts/${BUILD_TYPE}"
+          if [ -d "${base}/VST3" ]; then cp -r "${base}/VST3/"*.vst3 artifacts/ 2>/dev/null || true; fi
+          if [ -d "${base}/CLAP" ]; then cp "${base}/CLAP/"*.clap artifacts/ 2>/dev/null || true; fi
+          if [ -d "${base}/Standalone" ]; then cp "${base}/Standalone/"*.exe artifacts/ 2>/dev/null || true; fi
 
-          for pedal in Mechanica Hydraulica Pneumatica Electrica; do
-            base="build/${pedal}/${pedal}_artefacts/${BUILD_TYPE}"
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.plugin }}-Windows-${{ github.sha }}
+          path: artifacts/
+          retention-days: 30
 
-            # VST3 bundles (directories)
-            if [ -d "${base}/VST3" ]; then
-              cp -r "${base}/VST3/"*.vst3 artifacts/windows/ 2>/dev/null || true
-            fi
+  # ---------------------------------------------------------------------------
+  # Windows installer — runs after all Windows plugin builds
+  # ---------------------------------------------------------------------------
+  installer-windows:
+    name: Windows Installer
+    needs: [changes, build-windows]
+    runs-on: windows-latest
+    steps:
+      - name: Checkout (for packaging scripts)
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            packaging
+            VERSION
 
-            # CLAP
-            if [ -d "${base}/CLAP" ]; then
-              cp "${base}/CLAP/"*.clap artifacts/windows/ 2>/dev/null || true
-            fi
-
-            # Standalone exe
-            if [ -d "${base}/Standalone" ]; then
-              cp "${base}/Standalone/"*.exe artifacts/windows/ 2>/dev/null || true
-            fi
-          done
+      - name: Download all Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-Windows-*"
+          path: artifacts/windows
+          merge-multiple: true
 
       - name: Read version
         id: version
@@ -159,16 +231,9 @@ jobs:
             /DVERSION=${{ steps.version.outputs.version }}
             /DARTIFACTS_DIR=artifacts\windows
 
-      - name: Upload Windows installer
+      - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
           name: PedalSuite-Windows-Installer-${{ github.sha }}
           path: artifacts/DirektDSP-PedalSuite-*-Windows.exe
-          retention-days: 30
-
-      - name: Upload Windows raw artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: PedalSuite-Windows-${{ github.sha }}
-          path: artifacts/windows/
           retention-days: 30
