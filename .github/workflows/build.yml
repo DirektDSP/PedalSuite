@@ -19,6 +19,22 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          token: ${{ secrets.PAT }}
+
+      - name: Recreate moonbase_api_config.json files
+        run: |
+          for pedal in Electrica Hydraulica Mechanica Pneumatica; do
+            UPPER=$(echo "$pedal" | tr '[:lower:]' '[:upper:]')
+            SECRET_VAR="${UPPER}_CONFIG_B64"
+            eval SECRET_VALUE="\$$SECRET_VAR"
+            echo "$SECRET_VALUE" | base64 --decode > "${pedal}/moonbase_api_config.json"
+            cp "${pedal}/moonbase_api_config.json" "${pedal}/assets/moonbase_api_config.json"
+          done
+        env:
+          ELECTRICA_CONFIG_B64: ${{ secrets.ELECTRICA_CONFIG_B64 }}
+          HYDRAULICA_CONFIG_B64: ${{ secrets.HYDRAULICA_CONFIG_B64 }}
+          MECHANICA_CONFIG_B64: ${{ secrets.MECHANICA_CONFIG_B64 }}
+          PNEUMATICA_CONFIG_B64: ${{ secrets.PNEUMATICA_CONFIG_B64 }}
 
       - name: Install dependencies
         run: |
@@ -79,6 +95,23 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          token: ${{ secrets.PAT }}
+
+      - name: Recreate moonbase_api_config.json files
+        shell: bash
+        run: |
+          for pedal in Electrica Hydraulica Mechanica Pneumatica; do
+            UPPER=$(echo "$pedal" | tr '[:lower:]' '[:upper:]')
+            SECRET_VAR="${UPPER}_CONFIG_B64"
+            eval SECRET_VALUE="\$$SECRET_VAR"
+            echo "$SECRET_VALUE" | base64 --decode > "${pedal}/moonbase_api_config.json"
+            cp "${pedal}/moonbase_api_config.json" "${pedal}/assets/moonbase_api_config.json"
+          done
+        env:
+          ELECTRICA_CONFIG_B64: ${{ secrets.ELECTRICA_CONFIG_B64 }}
+          HYDRAULICA_CONFIG_B64: ${{ secrets.HYDRAULICA_CONFIG_B64 }}
+          MECHANICA_CONFIG_B64: ${{ secrets.MECHANICA_CONFIG_B64 }}
+          PNEUMATICA_CONFIG_B64: ${{ secrets.PNEUMATICA_CONFIG_B64 }}
 
       - name: Configure
         run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
