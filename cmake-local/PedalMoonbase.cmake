@@ -57,7 +57,8 @@ function(pedal_setup_moonbase)
     target_include_directories(${MB_TARGET} BEFORE PRIVATE "${MB_DEST_DIR}")
 
     target_compile_definitions(${MB_TARGET} PRIVATE
-        JUCE_MODULE_AVAILABLE_moonbase_JUCEClient=1)
+        JUCE_MODULE_AVAILABLE_moonbase_JUCEClient=1
+        INCLUDE_MOONBASE_UI=0)
 
     # Moonbase module dependencies
     target_link_libraries(${MB_TARGET} PRIVATE
