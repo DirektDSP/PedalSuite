@@ -271,7 +271,7 @@ jobs:
           cmake -B build $CMAKE_FLAGS
 
       - name: Build
-        run: cmake --build build --config ${{ needs.changes.outputs.build_type }} --target ${{ matrix.plugin }}_Standalone ${{ matrix.plugin }}_VST3 ${{ matrix.plugin }}_CLAP
+        run: cmake --build build --config ${{ needs.changes.outputs.build_type }} --parallel 4 --target ${{ matrix.plugin }}_Standalone ${{ matrix.plugin }}_VST3 ${{ matrix.plugin }}_CLAP
 
       - name: Collect artifacts
         shell: bash
