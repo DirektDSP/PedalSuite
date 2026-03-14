@@ -1,0 +1,138 @@
+name: Build PedalSuite
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build-linux:
+    name: Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build \
+            libasound2-dev libjack-jackd2-dev \
+            libfreetype-dev libx11-dev libxcomposite-dev \
+            libxcursor-dev libxext-dev libxfixes-dev \
+            libxinerama-dev libxrandr-dev libxrender-dev \
+            libwebkit2gtk-4.1-dev libcurl4-openssl-dev \
+            ladspa-sdk libgl1-mesa-dev
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }}
+
+      - name: Collect artifacts
+        run: |
+          VERSION=$(cat VERSION)
+          mkdir -p artifacts
+
+          for pedal in Mechanica Hydraulica Pneumatica Electrica; do
+            base="build/${pedal}/${pedal}_artefacts/${BUILD_TYPE}"
+
+            # VST3 bundles
+            if [ -d "${base}/VST3" ]; then
+              cp -r "${base}/VST3/"*.vst3 artifacts/ 2>/dev/null || true
+            fi
+
+            # CLAP
+            if [ -d "${base}/CLAP" ]; then
+              cp "${base}/CLAP/"*.clap artifacts/ 2>/dev/null || true
+            fi
+
+            # Standalone
+            if [ -d "${base}/Standalone" ]; then
+              cp "${base}/Standalone/"* artifacts/ 2>/dev/null || true
+            fi
+          done
+
+          ls -laR artifacts/
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PedalSuite-Linux-${{ github.sha }}
+          path: artifacts/
+          retention-days: 30
+
+  build-windows:
+    name: Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }}
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p artifacts/windows
+
+          for pedal in Mechanica Hydraulica Pneumatica Electrica; do
+            base="build/${pedal}/${pedal}_artefacts/${BUILD_TYPE}"
+
+            # VST3 bundles (directories)
+            if [ -d "${base}/VST3" ]; then
+              cp -r "${base}/VST3/"*.vst3 artifacts/windows/ 2>/dev/null || true
+            fi
+
+            # CLAP
+            if [ -d "${base}/CLAP" ]; then
+              cp "${base}/CLAP/"*.clap artifacts/windows/ 2>/dev/null || true
+            fi
+
+            # Standalone exe
+            if [ -d "${base}/Standalone" ]; then
+              cp "${base}/Standalone/"*.exe artifacts/windows/ 2>/dev/null || true
+            fi
+          done
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Build NSIS installer
+        uses: joncloud/makensis-action@v4
+        with:
+          script-file: packaging/installer.nsi
+          arguments: >-
+            /DVERSION=${{ steps.version.outputs.version }}
+            /DARTIFACTS_DIR=artifacts\windows
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: PedalSuite-Windows-Installer-${{ github.sha }}
+          path: artifacts/DirektDSP-PedalSuite-*-Windows.exe
+          retention-days: 30
+
+      - name: Upload Windows raw artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PedalSuite-Windows-${{ github.sha }}
+          path: artifacts/windows/
+          retention-days: 30
