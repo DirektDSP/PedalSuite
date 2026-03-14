@@ -366,8 +366,7 @@ jobs:
     needs: [changes, build-windows]
     if: |
       needs.changes.outputs.skip != 'true' &&
-      needs.changes.outputs.run_windows == 'true' &&
-      needs.changes.outputs.no_moonbase != 'true'
+      needs.changes.outputs.run_windows == 'true'
     runs-on: windows-latest
     steps:
       - name: Checkout (for packaging scripts)
