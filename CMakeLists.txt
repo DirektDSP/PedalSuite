@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.25)
 
-# This tells cmake we have goodies in the /cmake folder
+# This tells cmake we have goodies in the /cmake folder (submodule) and /cmake-local (our own)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake-local")
 include(PamplejuceVersion)
 
 # Modern concise way to add dependencies to your project
