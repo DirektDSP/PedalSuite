@@ -142,6 +142,7 @@ static DSP::Core::ElectricaParams loadParams (juce::AudioProcessorValueTreeState
     p.midiCCEnable        = apvts.getRawParameterValue ("MIDI_CC_ENABLE")->load() >= 0.5f;
     p.midiCCNumber        = static_cast<int> (apvts.getRawParameterValue ("MIDI_CC_NUMBER")->load());
     p.midiCCSmoothMs      = apvts.getRawParameterValue ("MIDI_CC_SMOOTH")->load();
+    p.polyPeakGateDb      = apvts.getRawParameterValue ("POLY_PEAK_GATE")->load();
     return p;
 }
 

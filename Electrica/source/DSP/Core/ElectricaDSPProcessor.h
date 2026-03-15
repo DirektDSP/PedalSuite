@@ -11,6 +11,7 @@
 #include "SpectralFluxDetector.h"
 #include "NoteTracker.h"
 #include "PolyphonicTracker.h"
+#include "FFTPeakDetector.h"
 #include "SynthVoice.h"
 #include <vector>
 #include <atomic>
@@ -55,6 +56,7 @@ namespace DSP
             int inputMode = 0;         // 0 = Guitar, 1 = Vocal
             float glide = 20.0f;
             int tracking = 0;          // 0 = mono, 1 = poly
+            float polyPeakGateDb = -40.0f;  // -80 to -10 dB: amplitude gate for FFT peak detection
             int pitchAlgorithm = 0;    // 0 = MPM, 1 = Cycfi Q
             bool snapToNote = false;
             float yinWindowMs = 20.0f;
@@ -162,8 +164,9 @@ namespace DSP
                 phonationReleaseCoeff = static_cast<SampleType> (
                     std::exp (-1.0 / (0.1 * sampleRate)));
 
-                // Polyphonic tracker
+                // Polyphonic trackers
                 polyTracker.prepare (sampleRate, samplesPerBlock);
+                fftPeakDetector.prepare (sampleRate, samplesPerBlock);
 
                 // All voices
                 for (auto& v : voices)
@@ -236,6 +239,7 @@ namespace DSP
                 noteTracker.updateParameters (params.confidenceGate, 30.0f, 40.0f,
                                               params.snapToNote, inputMode);
                 polyTracker.updateParameters (params.confidenceGate, params.snapToNote);
+                fftPeakDetector.updateParameters (params.polyPeakGateDb);
 
                 for (auto& v : voices)
                     v.updateParameters (params.oscWave, params.oscOctave, params.oscDetune,
@@ -316,6 +320,7 @@ namespace DSP
                 spectralFluxDetector.reset();
                 noteTracker.reset();
                 polyTracker.reset();
+                fftPeakDetector.reset();
                 smoothedPeriodicity = SampleType (0);
                 spectralFluxMidiMean = 0.0f;
                 spectralFluxMidiHoldCounter = 0;
@@ -453,15 +458,16 @@ namespace DSP
                         monoIn += buffer.getSample (ch, i) * inputGain;
                     monoIn /= static_cast<SampleType> (numCh);
 
-                    polyTracker.pushSample (monoIn);
-                    const auto& bandResults = polyTracker.getResults();
+                    // FFT peak detector — updates internally at hop boundaries
+                    fftPeakDetector.pushSample (monoIn);
+                    const auto& peakResults = fftPeakDetector.getResults();
 
-                    for (int b = 0; b < PolyphonicTracker<SampleType>::numBands; ++b)
+                    for (int b = 0; b < FFTPeakDetector<SampleType>::maxPeaks; ++b)
                     {
-                        if (bandResults[static_cast<size_t> (b)].active
-                            && bandResults[static_cast<size_t> (b)].frequency > SampleType (0))
+                        if (peakResults[static_cast<size_t> (b)].active
+                            && peakResults[static_cast<size_t> (b)].frequency > SampleType (0))
                         {
-                            voices[b].setTargetFrequency (bandResults[static_cast<size_t> (b)].frequency);
+                            voices[b].setTargetFrequency (peakResults[static_cast<size_t> (b)].frequency);
                         }
                     }
 
@@ -477,14 +483,14 @@ namespace DSP
 
                         tickPendingNoteOffs (i);
 
-                        for (int b = 0; b < PolyphonicTracker<SampleType>::numBands; ++b)
+                        for (int b = 0; b < FFTPeakDetector<SampleType>::maxPeaks; ++b)
                         {
-                            bool bandActive = bandResults[static_cast<size_t> (b)].active;
+                            bool bandActive = peakResults[static_cast<size_t> (b)].active;
                             bool bandSilenceToSound = bandActive && ! prevPolyActive[b];
                             prevPolyActive[b] = bandActive;
 
                             emitMidiFromTrackedNote (b, bandActive,
-                                bandResults[static_cast<size_t> (b)].frequency,
+                                peakResults[static_cast<size_t> (b)].frequency,
                                 inputLevel, i, midiOnset || bandSilenceToSound);
                         }
 
@@ -495,13 +501,13 @@ namespace DSP
                     {
                         SampleType synthSum = SampleType (0);
 
-                        for (int b = 0; b < PolyphonicTracker<SampleType>::numBands; ++b)
+                        for (int b = 0; b < FFTPeakDetector<SampleType>::maxPeaks; ++b)
                             synthSum += voices[b].processSample (inputLevel);
 
                         int activeCount = 0;
-                        for (int b = 0; b < PolyphonicTracker<SampleType>::numBands; ++b)
+                        for (int b = 0; b < FFTPeakDetector<SampleType>::maxPeaks; ++b)
                         {
-                            if (bandResults[static_cast<size_t> (b)].active)
+                            if (peakResults[static_cast<size_t> (b)].active)
                                 ++activeCount;
                         }
                         if (activeCount > 1)
@@ -916,6 +922,7 @@ namespace DSP
             SpectralFluxDetector<SampleType> spectralFluxDetector;  // vocal mode onset
             NoteTracker<SampleType> noteTracker;
             PolyphonicTracker<SampleType> polyTracker;
+            FFTPeakDetector<SampleType> fftPeakDetector;
 
             // Synth voices
             SynthVoice<SampleType> voices[maxVoices];
