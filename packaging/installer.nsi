@@ -13,7 +13,10 @@
 !endif
 
 Name "DirektDSP PedalSuite ${VERSION}"
-OutFile "artifacts\DirektDSP-PedalSuite-${VERSION}-Windows.exe"
+!ifndef OUTDIR
+  !define OUTDIR "artifacts"
+!endif
+OutFile "${OUTDIR}\DirektDSP-PedalSuite-${VERSION}-Windows.exe"
 InstallDir "$PROGRAMFILES64\DirektDSP\PedalSuite"
 RequestExecutionLevel admin
 Unicode True
