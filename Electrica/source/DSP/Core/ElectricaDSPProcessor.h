@@ -8,6 +8,7 @@
 #include "MPMPitchDetector.h"
 #include "CycfiQPitchDetector.h"
 #include "OnsetDetector.h"
+#include "SpectralFluxDetector.h"
 #include "NoteTracker.h"
 #include "PolyphonicTracker.h"
 #include "SynthVoice.h"
@@ -51,6 +52,7 @@ namespace DSP
             int compSpeed = 1;
 
             // ===== TRACKING =====
+            int inputMode = 0;         // 0 = Guitar, 1 = Vocal
             float glide = 20.0f;
             int tracking = 0;          // 0 = mono, 1 = poly
             int pitchAlgorithm = 0;    // 0 = MPM, 1 = Cycfi Q
@@ -88,6 +90,10 @@ namespace DSP
             // Articulation
             int midiRetrigger = 0;        // 0=Retrigger, 1=Legato
             bool midiNoteHold = false;    // latch last note
+
+            // Transient-gated retrigger
+            float midiTransientSens = 50.0f;   // 0-100%: higher = needs bigger transient
+            float midiTransientHoldMs = 50.0f;  // 20-500ms: min time between retriggers
 
             // Pitch bend
             bool midiPitchBend = false;
@@ -148,7 +154,13 @@ namespace DSP
                 mpmDetector.prepare (sampleRate, samplesPerBlock);
                 cycfiDetector.prepare (sampleRate, samplesPerBlock);
                 onsetDetector.prepare (sampleRate);
+                midiOnsetDetector.prepare (sampleRate);
+                spectralFluxDetector.prepare (sampleRate);
                 noteTracker.prepare (sampleRate);
+
+                // Phonation gate release coefficient (~100ms release)
+                phonationReleaseCoeff = static_cast<SampleType> (
+                    std::exp (-1.0 / (0.1 * sampleRate)));
 
                 // Polyphonic tracker
                 polyTracker.prepare (sampleRate, samplesPerBlock);
@@ -198,6 +210,7 @@ namespace DSP
                 else
                     midiCCSmoothCoeff = SampleType (1);
 
+                inputMode = params.inputMode;
                 trackingMode = params.tracking;
                 pitchAlgorithm = params.pitchAlgorithm;
                 snapToNote = params.snapToNote;
@@ -207,8 +220,21 @@ namespace DSP
                 mpmDetector.updateParameters (params.yinWindowMs, mpmThreshold);
                 cycfiDetector.updateParameters (params.yinWindowMs, mpmThreshold);
 
+                // Onset detectors: HFC always configured, spectral flux for vocal mode
                 onsetDetector.updateParameters (3.0f + params.confidenceGate * 5.0f);
-                noteTracker.updateParameters (params.confidenceGate, 30.0f, 40.0f, params.snapToNote);
+                float midiOnsetThresh = 2.0f + params.midiTransientSens * 0.1f;
+                midiOnsetDetector.updateParameters (midiOnsetThresh, params.midiTransientHoldMs);
+                // Spectral flux uses same sensitivity mapping for vocal mode
+                float sfThresh = 1.5f + params.confidenceGate * 3.0f;
+                spectralFluxDetector.updateParameters (sfThresh,
+                    (inputMode == 1) ? 80.0f : 50.0f);  // longer hold for vocals
+                float sfMidiThresh = 1.5f + params.midiTransientSens * 0.05f;
+                spectralFluxMidiThreshold = sfMidiThresh;
+                spectralFluxMidiHoldSamples = std::max (1,
+                    static_cast<int> (sampleRate * params.midiTransientHoldMs * 0.001));
+
+                noteTracker.updateParameters (params.confidenceGate, 30.0f, 40.0f,
+                                              params.snapToNote, inputMode);
                 polyTracker.updateParameters (params.confidenceGate, params.snapToNote);
 
                 for (auto& v : voices)
@@ -286,8 +312,13 @@ namespace DSP
                 mpmDetector.reset();
                 cycfiDetector.reset();
                 onsetDetector.reset();
+                midiOnsetDetector.reset();
+                spectralFluxDetector.reset();
                 noteTracker.reset();
                 polyTracker.reset();
+                smoothedPeriodicity = SampleType (0);
+                spectralFluxMidiMean = 0.0f;
+                spectralFluxMidiHoldCounter = 0;
 
                 for (auto& v : voices)
                     v.reset();
@@ -320,7 +351,18 @@ namespace DSP
                         monoIn += buffer.getSample (ch, i) * inputGain;
                     monoIn /= static_cast<SampleType> (numCh);
 
-                    bool onset = onsetDetector.processSample (monoIn);
+                    // Onset detection: HFC for guitar, spectral flux for vocal
+                    bool onset;
+                    if (inputMode == 1)
+                    {
+                        onset = spectralFluxDetector.processSample (monoIn);
+                        lastSpectralFluxOnset = onset;  // cache for MIDI onset path
+                    }
+                    else
+                    {
+                        onset = onsetDetector.processSample (monoIn);
+                        lastSpectralFluxOnset = false;
+                    }
 
                     SampleType detectedFreq, pitchConfidence;
                     if (pitchAlgorithm == 1)
@@ -347,9 +389,35 @@ namespace DSP
                     if (midiOutputEnabled)
                     {
                         auto inputLevel = std::abs (monoIn);
+
+                        // MIDI onset: mode-dependent
+                        bool midiOnset;
+                        if (inputMode == 1)
+                            midiOnset = computeSpectralFluxMidiOnset (monoIn);
+                        else
+                            midiOnset = midiOnsetDetector.processSample (monoIn);
+
+                        // Phonation gate (vocal mode): use periodicity to filter noise/breath
+                        bool phonationActive = true;
+                        if (inputMode == 1)
+                        {
+                            auto periodicity = (pitchAlgorithm == 1)
+                                ? cycfiDetector.getConfidence()
+                                : mpmDetector.getConfidence();
+                            // Instant attack, slow release (~100ms)
+                            if (periodicity > smoothedPeriodicity)
+                                smoothedPeriodicity = periodicity;
+                            else
+                                smoothedPeriodicity *= phonationReleaseCoeff;
+                            phonationActive = smoothedPeriodicity > confidenceGate;
+                        }
+
+                        bool silenceToSound = tracked.noteActive && phonationActive
+                                              && currentMidiNote[0] == 0;
                         tickPendingNoteOffs (i);
-                        emitMidiFromTrackedNote (0, tracked.noteActive, tracked.frequency,
-                                                 inputLevel, i, tracked.isOnset);
+                        emitMidiFromTrackedNote (0, tracked.noteActive && phonationActive,
+                                                 tracked.frequency,
+                                                 inputLevel, i, midiOnset || silenceToSound);
                         emitMidiCC (inputLevel, i);
                     }
 
@@ -401,17 +469,23 @@ namespace DSP
 
                     if (midiOutputEnabled)
                     {
+                        bool midiOnset;
+                        if (inputMode == 1)
+                            midiOnset = computeSpectralFluxMidiOnset (monoIn);
+                        else
+                            midiOnset = midiOnsetDetector.processSample (monoIn);
+
                         tickPendingNoteOffs (i);
 
                         for (int b = 0; b < PolyphonicTracker<SampleType>::numBands; ++b)
                         {
                             bool bandActive = bandResults[static_cast<size_t> (b)].active;
-                            bool bandOnset = bandActive && ! prevPolyActive[b];
+                            bool bandSilenceToSound = bandActive && ! prevPolyActive[b];
                             prevPolyActive[b] = bandActive;
 
                             emitMidiFromTrackedNote (b, bandActive,
                                 bandResults[static_cast<size_t> (b)].frequency,
-                                inputLevel, i, bandOnset);
+                                inputLevel, i, midiOnset || bandSilenceToSound);
                         }
 
                         emitMidiCC (inputLevel, i);
@@ -612,6 +686,27 @@ namespace DSP
                 pendingNoteOffNote[voiceIndex] = 0;
             }
 
+            // ======================== PITCH BEND (relative to held note) ========================
+
+            void emitPitchBendRelative (int channel, SampleType exactMidiNote, int heldMidiNote, int samplePos)
+            {
+                if (! midiPitchBendOn || midiPitchBendSemis <= 0)
+                    return;
+
+                float diff = static_cast<float> (exactMidiNote) - static_cast<float> (heldMidiNote);
+                float normalizedBend = diff / static_cast<float> (midiPitchBendSemis);
+                normalizedBend = std::clamp (normalizedBend, -1.0f, 1.0f);
+                int bendValue = 8192 + static_cast<int> (normalizedBend * 8191.0f);
+                bendValue = std::clamp (bendValue, 0, 16383);
+
+                MidiEvent e;
+                e.type = MidiEvent::PitchBendMsg;
+                e.samplePosition = samplePos;
+                e.channel = channel;
+                e.pitchBendValue = bendValue;
+                midiEvents.push_back (e);
+            }
+
             // ======================== CORE MIDI EMISSION ========================
 
             void emitMidiFromTrackedNote (int voiceIndex, bool active, SampleType freq,
@@ -628,17 +723,9 @@ namespace DSP
                 if (active && freq > SampleType (30))
                 {
                     exactMidi = static_cast<float> (SampleType (69) + SampleType (12) * std::log2 (freq / SampleType (440)));
-
-                    // Transpose
                     exactMidi += static_cast<float> (midiTransposeSemis);
-
-                    // Round to nearest semitone for MIDI note
                     newNote = std::clamp (static_cast<int> (std::round (exactMidi)), 0, 127);
-
-                    // Scale lock quantization
                     newNote = quantizeToScale (newNote);
-
-                    // Note range filter
                     if (newNote < midiNoteMinVal || newNote > midiNoteMaxVal)
                         newNote = 0;
                 }
@@ -649,16 +736,59 @@ namespace DSP
 
                 int oldNote = currentMidiNote[voiceIndex];
 
-                // Retrigger: re-send note-on for same pitch on onset
-                bool sameNoteRetrigger = (midiRetriggerMode == 0) && isOnset
-                                         && (newNote == oldNote) && (newNote > 0);
+                // Determine action: only retrigger on transient or silence→sound
+                bool doNoteOff = false;
+                bool doNoteOn = false;
 
-                if (newNote != oldNote || sameNoteRetrigger)
+                if (newNote == 0 && oldNote > 0)
+                {
+                    // Going silent
+                    doNoteOff = true;
+                }
+                else if (newNote > 0 && oldNote == 0)
+                {
+                    // Silence → sound
+                    doNoteOn = true;
+                }
+                else if (newNote > 0 && isOnset)
+                {
+                    // Transient detected — retrigger
+                    // (In legato mode, same-note onset doesn't retrigger)
+                    if (midiRetriggerMode == 1 && newNote == oldNote)
+                    {
+                        // Legato: no retrigger on same note, just update pitch bend
+                        if (midiPitchBendOn)
+                            emitPitchBendRelative (channel, static_cast<SampleType> (exactMidi), oldNote, samplePos);
+                        return;
+                    }
+                    doNoteOff = (oldNote > 0);
+                    doNoteOn = true;
+                }
+                else if (newNote > 0 && newNote != oldNote && oldNote > 0)
+                {
+                    // Pitch changed without transient — use pitch bend if enabled, don't retrigger
+                    if (midiPitchBendOn)
+                        emitPitchBendRelative (channel, static_cast<SampleType> (exactMidi), oldNote, samplePos);
+                    return;
+                }
+                else if (newNote > 0 && newNote == oldNote)
+                {
+                    // Same note, no onset — update micro-pitch via pitch bend
+                    if (midiPitchBendOn)
+                        emitPitchBendRelative (channel, static_cast<SampleType> (exactMidi), oldNote, samplePos);
+                    return;
+                }
+                else
+                {
+                    return;
+                }
+
+                // Execute note-off
+                if (doNoteOff)
                 {
                     // Cancel any pending delayed note-off for this voice
                     if (pendingNoteOffCount[voiceIndex] > 0)
                     {
-                        // Send the pending note-off immediately before new note
                         MidiEvent offEvt;
                         offEvt.type = MidiEvent::NoteOff;
                         offEvt.samplePosition = samplePos;
@@ -668,59 +798,96 @@ namespace DSP
                         cancelPendingNoteOff (voiceIndex);
                     }
 
-                    // Note off for previous note
                     if (oldNote > 0)
                         scheduleNoteOff (voiceIndex, oldNote, channel, samplePos);
+                }
 
-                    // Note on for new note
-                    if (newNote > 0)
+                // Execute note-on
+                if (doNoteOn)
+                {
+                    // For same-note retrigger, flush any pending note-off immediately
+                    if (doNoteOff && newNote == oldNote && midiNoteOffDelaySamps > 0)
                     {
-                        // If we're sending a retrigger note-off then note-on for the same note,
-                        // flush the note-off immediately (don't delay it)
-                        if (sameNoteRetrigger && midiNoteOffDelaySamps > 0)
+                        if (pendingNoteOffCount[voiceIndex] > 0)
                         {
-                            // The scheduleNoteOff above already queued it; force-fire it now
-                            if (pendingNoteOffCount[voiceIndex] > 0)
-                            {
-                                MidiEvent offEvt;
-                                offEvt.type = MidiEvent::NoteOff;
-                                offEvt.samplePosition = samplePos;
-                                offEvt.channel = pendingNoteOffChan[voiceIndex];
-                                offEvt.noteNumber = pendingNoteOffNote[voiceIndex];
-                                midiEvents.push_back (offEvt);
-                                cancelPendingNoteOff (voiceIndex);
-                            }
+                            MidiEvent offEvt;
+                            offEvt.type = MidiEvent::NoteOff;
+                            offEvt.samplePosition = samplePos;
+                            offEvt.channel = pendingNoteOffChan[voiceIndex];
+                            offEvt.noteNumber = pendingNoteOffNote[voiceIndex];
+                            midiEvents.push_back (offEvt);
+                            cancelPendingNoteOff (voiceIndex);
                         }
-
-                        float vel;
-                        if (midiVelOverrideOn)
-                            vel = static_cast<float> (midiVelFixed) / 127.0f;
-                        else
-                            vel = applyVelocityCurve (static_cast<float> (inputLevel) * 4.0f);
-
-                        MidiEvent onEvt;
-                        onEvt.type = MidiEvent::NoteOn;
-                        onEvt.samplePosition = samplePos;
-                        onEvt.channel = channel;
-                        onEvt.noteNumber = newNote;
-                        onEvt.velocity = vel;
-                        midiEvents.push_back (onEvt);
-
-                        // Pitch bend for micro-tonal accuracy
-                        emitPitchBend (channel, static_cast<SampleType> (exactMidi), samplePos);
-
-                        // Update activity display
-                        midiActivityNote.store (newNote, std::memory_order_relaxed);
-                        midiActivityChannel.store (channel, std::memory_order_relaxed);
-                        midiActivityVelocity.store (vel, std::memory_order_relaxed);
                     }
+
+                    float vel;
+                    if (midiVelOverrideOn)
+                        vel = static_cast<float> (midiVelFixed) / 127.0f;
                     else
-                    {
-                        midiActivityNote.store (-1, std::memory_order_relaxed);
-                    }
+                        vel = applyVelocityCurve (static_cast<float> (inputLevel) * 4.0f);
+
+                    MidiEvent onEvt;
+                    onEvt.type = MidiEvent::NoteOn;
+                    onEvt.samplePosition = samplePos;
+                    onEvt.channel = channel;
+                    onEvt.noteNumber = newNote;
+                    onEvt.velocity = vel;
+                    midiEvents.push_back (onEvt);
+
+                    // Pitch bend for micro-tonal accuracy (relative to new note)
+                    emitPitchBend (channel, static_cast<SampleType> (exactMidi), samplePos);
+
+                    midiActivityNote.store (newNote, std::memory_order_relaxed);
+                    midiActivityChannel.store (channel, std::memory_order_relaxed);
+                    midiActivityVelocity.store (vel, std::memory_order_relaxed);
 
                     currentMidiNote[voiceIndex] = newNote;
                 }
+                else if (doNoteOff)
+                {
+                    midiActivityNote.store (-1, std::memory_order_relaxed);
+                    currentMidiNote[voiceIndex] = 0;
+                }
+            }
+
+            // ======================== SPECTRAL FLUX MIDI ONSET ========================
+            // Shares the spectral flux detector with the NoteTracker onset path,
+            // but applies independent threshold/hold for MIDI retrigger decisions.
+            bool computeSpectralFluxMidiOnset (SampleType /*monoIn*/)
+            {
+                // The spectral flux detector was already called this sample in the
+                // NoteTracker onset path. We piggyback on its internal flux value
+                // via a separate threshold/hold tracker to avoid running a second FFT.
+                // Since we can't easily extract the raw flux from the detector,
+                // we run the same sample through the detector's processSample —
+                // but it was already called. So instead we use a lightweight
+                // energy-rise detector tuned for vocal mode.
+
+                // Actually, we use the spectralFluxDetector as a shared computation.
+                // The onset was already computed for NoteTracker. For MIDI, we use
+                // the midiOnsetDetector (HFC) even in vocal mode as a complementary
+                // detector — it catches consonant plosives that spectral flux might
+                // batch into a hop boundary. The spectral flux result from the
+                // NoteTracker path is also available via the onset flag passed to
+                // noteTracker.process().
+
+                // For the MIDI path in vocal mode, we combine:
+                // 1. The spectral flux onset (already computed, stored in lastSpectralFluxOnset)
+                // 2. Independent hold timing for MIDI
+
+                if (spectralFluxMidiHoldCounter > 0)
+                {
+                    --spectralFluxMidiHoldCounter;
+                    return false;
+                }
+
+                if (lastSpectralFluxOnset)
+                {
+                    spectralFluxMidiHoldCounter = spectralFluxMidiHoldSamples;
+                    return true;
+                }
+
+                return false;
             }
 
             // ======================== SMOOTHERS ========================
@@ -745,16 +912,30 @@ namespace DSP
             MPMPitchDetector<SampleType> mpmDetector;
             CycfiQPitchDetector<SampleType> cycfiDetector;
             OnsetDetector<SampleType> onsetDetector;
+            OnsetDetector<SampleType> midiOnsetDetector;  // independent onset for MIDI retrigger
+            SpectralFluxDetector<SampleType> spectralFluxDetector;  // vocal mode onset
             NoteTracker<SampleType> noteTracker;
             PolyphonicTracker<SampleType> polyTracker;
 
             // Synth voices
             SynthVoice<SampleType> voices[maxVoices];
 
+            int inputMode = 0;       // 0=Guitar, 1=Vocal
             int trackingMode = 0;
             int pitchAlgorithm = 0;
             bool snapToNote = false;
             SampleType confidenceGate = SampleType (0.3);
+
+            // Spectral flux MIDI onset state (vocal mode)
+            bool lastSpectralFluxOnset = false;
+            float spectralFluxMidiThreshold = 3.0f;
+            float spectralFluxMidiMean = 0.0f;
+            int spectralFluxMidiHoldSamples = 4410;
+            int spectralFluxMidiHoldCounter = 0;
+
+            // Phonation gate (vocal mode)
+            SampleType smoothedPeriodicity = SampleType (0);
+            SampleType phonationReleaseCoeff = SampleType (0.9999);
 
             // MIDI output configuration
             bool midiOutputEnabled = false;

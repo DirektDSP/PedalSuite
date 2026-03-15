@@ -126,6 +126,11 @@ public:
             juce::ParameterID{"COMP_SPEED", 1}, "Comp Speed",
             juce::StringArray{"Fast", "Medium", "Slow"}, 1));
 
+        // --- Input Mode ---
+        params.push_back(std::make_unique<juce::AudioParameterChoice>(
+            juce::ParameterID{"INPUT_MODE", 1}, "Input Mode",
+            juce::StringArray{"Guitar", "Vocal"}, 0));
+
         // --- Tracking ---
         params.push_back(std::make_unique<juce::AudioParameterFloat>(
             juce::ParameterID{"GLIDE", 1}, "Glide",
@@ -217,6 +222,15 @@ public:
 
         params.push_back(std::make_unique<juce::AudioParameterBool>(
             juce::ParameterID{"MIDI_NOTE_HOLD", 1}, "Note Hold", false));
+
+        // --- MIDI Output: Transient-gated Retrigger ---
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID{"MIDI_TRANSIENT_SENS", 1}, "Transient Sensitivity",
+            juce::NormalisableRange<float>(0.0f, 100.0f, 1.0f), 50.0f));
+
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID{"MIDI_TRANSIENT_HOLD", 1}, "Transient Hold",
+            juce::NormalisableRange<float>(20.0f, 500.0f, 1.0f, 0.3f), 50.0f));
 
         // --- MIDI Output: Pitch Bend ---
         params.push_back(std::make_unique<juce::AudioParameterBool>(

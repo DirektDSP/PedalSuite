@@ -106,6 +106,7 @@ static DSP::Core::ElectricaParams loadParams (juce::AudioProcessorValueTreeState
     p.distType        = static_cast<int> (apvts.getRawParameterValue ("DIST_TYPE")->load());
     p.compAmount      = apvts.getRawParameterValue ("COMP_AMOUNT")->load();
     p.compSpeed       = static_cast<int> (apvts.getRawParameterValue ("COMP_SPEED")->load());
+    p.inputMode       = static_cast<int> (apvts.getRawParameterValue ("INPUT_MODE")->load());
     p.glide           = apvts.getRawParameterValue ("GLIDE")->load();
     p.tracking        = static_cast<int> (apvts.getRawParameterValue ("TRACKING")->load());
     p.pitchAlgorithm  = static_cast<int> (apvts.getRawParameterValue ("PITCH_ALGO")->load());
@@ -130,6 +131,8 @@ static DSP::Core::ElectricaParams loadParams (juce::AudioProcessorValueTreeState
     p.midiNoteMax         = static_cast<int> (apvts.getRawParameterValue ("MIDI_NOTE_MAX")->load());
     p.midiRetrigger       = static_cast<int> (apvts.getRawParameterValue ("MIDI_RETRIGGER")->load());
     p.midiNoteHold        = apvts.getRawParameterValue ("MIDI_NOTE_HOLD")->load() >= 0.5f;
+    p.midiTransientSens   = apvts.getRawParameterValue ("MIDI_TRANSIENT_SENS")->load();
+    p.midiTransientHoldMs = apvts.getRawParameterValue ("MIDI_TRANSIENT_HOLD")->load();
     p.midiPitchBend       = apvts.getRawParameterValue ("MIDI_PITCHBEND")->load() >= 0.5f;
     {
         int pbIdx = static_cast<int> (apvts.getRawParameterValue ("MIDI_PITCHBEND_RANGE")->load());

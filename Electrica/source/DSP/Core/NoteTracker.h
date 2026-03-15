@@ -1,14 +1,16 @@
 #pragma once
 
 #include <cmath>
+#include <algorithm>
 
 namespace DSP {
 namespace Core {
 
-// Note locking state machine with hysteresis for stable pitch tracking.
+// Note locking state machine with adaptive hysteresis for stable pitch tracking.
 // Uses a 4-state model: Silence → Onset → Sustain → Release.
-// 50-cent hysteresis prevents vibrato from causing note flickering.
-// Minimum note duration and hold time prevent spurious note changes.
+// Hysteresis adapts to detected vibrato width — wider vibrato (vocals) gets
+// wider deadzone to prevent note flickering. Guitar mode: 50-cent base,
+// Vocal mode: 100-cent base + adaptive widening from pitch variance.
 template <typename SampleType>
 class NoteTracker
 {
@@ -29,12 +31,14 @@ public:
         reset();
     }
 
-    void updateParameters (float confGate, float holdMs, float minDurationMs, bool snap)
+    void updateParameters (float confGate, float holdMs, float minDurationMs, bool snap, int mode = 0)
     {
         confidenceGate = static_cast<SampleType> (confGate);
         holdSamples = static_cast<int> (sampleRate * holdMs * 0.001);
         minNoteSamples = static_cast<int> (sampleRate * minDurationMs * 0.001);
         snapToNote = snap;
+        inputMode = mode;
+        baseHysteresisCents = (mode == 1) ? SampleType (100) : SampleType (50);
     }
 
     Result process (SampleType detectedFreq, SampleType confidence, bool onsetDetected)
@@ -43,6 +47,23 @@ public:
         result.isOnset = false;
 
         bool validPitch = confidence > confidenceGate && detectedFreq > SampleType (30);
+
+        // Track pitch variance for adaptive hysteresis (vocal vibrato detection)
+        if (validPitch)
+        {
+            auto midi = freqToMidi (detectedFreq);
+            auto delta = midi - smoothedMidi;
+            smoothedMidi += SampleType (0.05) * delta;
+            // Exponential moving variance of pitch in MIDI note units
+            pitchVariance = SampleType (0.97) * pitchVariance + SampleType (0.03) * delta * delta;
+        }
+
+        // Effective hysteresis: base + adaptive component from pitch variance
+        // sqrt(variance) gives standard deviation in semitones, scale to cents
+        // Cap at 300 cents (3 semitones) to prevent runaway
+        auto adaptiveComponent = std::min (SampleType (300),
+                                           std::sqrt (pitchVariance) * SampleType (150));
+        auto effectiveHysteresis = baseHysteresisCents + adaptiveComponent;
 
         switch (state)
         {
@@ -57,6 +78,9 @@ public:
                         lockNote (detectedFreq);
                         state = State::Sustain;
                         noteCounter = 0;
+                        // Initialize smoothed pitch at locked note
+                        smoothedMidi = lockedMidiNote;
+                        pitchVariance = SampleType (0);
                     }
                 }
                 break;
@@ -67,11 +91,12 @@ public:
                     lockNote (detectedFreq);
                     state = State::Sustain;
                     noteCounter = 0;
+                    smoothedMidi = lockedMidiNote;
+                    pitchVariance = SampleType (0);
                 }
                 else
                 {
                     ++onsetWaitCounter;
-                    // Timeout: if no pitch detected within 50ms of onset, return to silence
                     if (onsetWaitCounter > static_cast<int> (sampleRate * 0.050))
                     {
                         state = State::Silence;
@@ -84,13 +109,11 @@ public:
                 ++noteCounter;
                 if (validPitch)
                 {
-                    // Check if pitch changed beyond hysteresis threshold
                     auto newMidi = freqToMidi (detectedFreq);
                     auto diff = std::abs (newMidi - lockedMidiNote);
 
-                    if (diff > hysteresisCents / SampleType (100))
+                    if (diff > effectiveHysteresis / SampleType (100))
                     {
-                        // Only allow note change after minimum duration
                         if (noteCounter >= minNoteSamples)
                         {
                             if (onsetDetected)
@@ -143,6 +166,8 @@ public:
         noteCounter = 0;
         releaseCounter = 0;
         onsetWaitCounter = 0;
+        smoothedMidi = SampleType (60);
+        pitchVariance = SampleType (0);
     }
 
 private:
@@ -189,7 +214,11 @@ private:
     int onsetWaitCounter = 0;
     bool snapToNote = false;
 
-    static constexpr SampleType hysteresisCents = SampleType (50);
+    // Adaptive hysteresis
+    int inputMode = 0; // 0=Guitar, 1=Vocal
+    SampleType baseHysteresisCents = SampleType (50);
+    SampleType smoothedMidi = SampleType (60);
+    SampleType pitchVariance = SampleType (0);
 };
 
 } // namespace Core

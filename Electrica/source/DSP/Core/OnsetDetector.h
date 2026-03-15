@@ -32,9 +32,11 @@ public:
         reset();
     }
 
-    void updateParameters (float thresholdMultiplier)
+    void updateParameters (float thresholdMultiplier, float holdTimeMs = -1.0f)
     {
         onsetThreshold = static_cast<SampleType> (thresholdMultiplier);
+        if (holdTimeMs >= 0.0f)
+            holdSamples = std::max (1, static_cast<int> (sampleRate * holdTimeMs * 0.001));
     }
 
     // Returns true on the sample where an onset is detected
