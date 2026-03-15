@@ -391,10 +391,6 @@ jobs:
       - name: Install NSIS
         run: choco install nsis --yes
 
-      - name: Ensure installer output directory exists
-        run: mkdir -p artifacts
-        shell: bash
-
       - name: Build NSIS installer
         uses: joncloud/makensis-action@v4
         with:
@@ -402,7 +398,7 @@ jobs:
           arguments: >-
             /DVERSION=${{ steps.version.outputs.version }}
             /DARTIFACTS_DIR=artifacts\windows
-            /DOUTDIR=artifacts
+            /DOUTDIR=..\artifacts
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
