@@ -397,7 +397,7 @@ jobs:
           script-file: packaging/installer.nsi
           arguments: >-
             /DVERSION=${{ steps.version.outputs.version }}
-            /DARTIFACTS_DIR=artifacts\windows
+            /DARTIFACTS_DIR=..\artifacts\windows
             /DOUTDIR=..\artifacts
 
       - name: Upload installer

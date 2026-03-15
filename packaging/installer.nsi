@@ -9,7 +9,7 @@
 !endif
 
 !ifndef ARTIFACTS_DIR
-  !define ARTIFACTS_DIR "artifacts\windows"
+  !define ARTIFACTS_DIR "..\artifacts\windows"
 !endif
 
 Name "DirektDSP PedalSuite ${VERSION}"
