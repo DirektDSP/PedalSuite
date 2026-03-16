@@ -393,8 +393,12 @@ namespace DSP
 
                     if (tracked.noteActive && tracked.frequency > SampleType (0))
                     {
-                        voices[0].setTargetFrequency (tracked.frequency);
-                        voices[1].setTargetFrequency (tracked.frequency);
+                        auto synthFreq = constrainFrequencyToRange (tracked.frequency);
+                        if (synthFreq > SampleType (0))
+                        {
+                            voices[0].setTargetFrequency (synthFreq);
+                            voices[1].setTargetFrequency (synthFreq);
+                        }
                     }
 
                     if (midiOutputEnabled)
@@ -473,7 +477,9 @@ namespace DSP
                         if (peakResults[static_cast<size_t> (b)].active
                             && peakResults[static_cast<size_t> (b)].frequency > SampleType (0))
                         {
-                            voices[b].setTargetFrequency (peakResults[static_cast<size_t> (b)].frequency);
+                            auto synthFreq = constrainFrequencyToRange (peakResults[static_cast<size_t> (b)].frequency);
+                            if (synthFreq > SampleType (0))
+                                voices[b].setTargetFrequency (synthFreq);
                         }
                     }
 
@@ -571,6 +577,47 @@ namespace DSP
                         return std::clamp (midiNote + offset, 0, 127);
                 }
                 return midiNote;
+            }
+
+            // ======================== SYNTH FREQUENCY CONSTRAINT ========================
+
+            // Apply transpose, scale lock, note range, and octave lock to a raw
+            // tracked frequency — same rules as the MIDI path but returns Hz for
+            // the internal synth oscillator.  Returns 0 if the note is rejected.
+            SampleType constrainFrequencyToRange (SampleType freq) const
+            {
+                if (freq <= SampleType (30))
+                    return SampleType (0);
+
+                // Freq → MIDI note number
+                float exactMidi = static_cast<float> (SampleType (69)
+                    + SampleType (12) * std::log2 (freq / SampleType (440)));
+                exactMidi += static_cast<float> (midiTransposeSemis);
+                int note = std::clamp (static_cast<int> (std::round (exactMidi)), 0, 127);
+
+                // Scale lock
+                note = quantizeToScale (note);
+
+                // Note range + octave lock
+                if (note < midiNoteMinVal || note > midiNoteMaxVal)
+                {
+                    if (midiOctaveLockOn && midiNoteMaxVal > midiNoteMinVal)
+                    {
+                        while (note < midiNoteMinVal && note + 12 <= 127)
+                            note += 12;
+                        while (note > midiNoteMaxVal && note - 12 >= 0)
+                            note -= 12;
+                        if (note < midiNoteMinVal || note > midiNoteMaxVal)
+                            return SampleType (0);
+                    }
+                    else
+                    {
+                        return SampleType (0);
+                    }
+                }
+
+                // MIDI note → frequency
+                return static_cast<SampleType> (440.0 * std::pow (2.0, (static_cast<double> (note) - 69.0) / 12.0));
             }
 
             // ======================== VELOCITY CURVE ========================
