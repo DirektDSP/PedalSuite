@@ -512,16 +512,18 @@ namespace DSP
                     if (! midiOutputEnabled)
                     {
                         SampleType synthSum = SampleType (0);
-
-                        for (int b = 0; b < FFTPeakDetector<SampleType>::maxPeaks; ++b)
-                            synthSum += voices[b].processSample (inputLevel);
-
                         int activeCount = 0;
+
                         for (int b = 0; b < FFTPeakDetector<SampleType>::maxPeaks; ++b)
                         {
-                            if (peakResults[static_cast<size_t> (b)].active)
+                            bool bandOn = peakResults[static_cast<size_t> (b)].active;
+                            // Feed zero input level to inactive voices so their
+                            // envelope closes naturally instead of sustaining.
+                            synthSum += voices[b].processSample (bandOn ? inputLevel : SampleType (0));
+                            if (bandOn)
                                 ++activeCount;
                         }
+
                         if (activeCount > 1)
                             synthSum /= std::sqrt (static_cast<SampleType> (activeCount));
 

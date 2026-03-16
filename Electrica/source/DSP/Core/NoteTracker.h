@@ -112,12 +112,22 @@ public:
                     auto newMidi = freqToMidi (detectedFreq);
                     auto diff = std::abs (newMidi - lockedMidiNote);
 
-                    if (diff > effectiveHysteresis / SampleType (100))
+                    // Two thresholds: onset-assisted relock uses normal
+                    // hysteresis; non-onset relock requires 2x the threshold
+                    // to prevent noisy pitch detection from causing jumps.
+                    auto onsetThreshold = effectiveHysteresis / SampleType (100);
+                    auto driftThreshold = effectiveHysteresis / SampleType (50);
+
+                    if (noteCounter >= minNoteSamples)
                     {
-                        if (noteCounter >= minNoteSamples)
+                        if (onsetDetected && diff > onsetThreshold)
                         {
-                            if (onsetDetected)
-                                result.isOnset = true;
+                            result.isOnset = true;
+                            lockNote (detectedFreq);
+                            noteCounter = 0;
+                        }
+                        else if (! onsetDetected && diff > driftThreshold)
+                        {
                             lockNote (detectedFreq);
                             noteCounter = 0;
                         }
