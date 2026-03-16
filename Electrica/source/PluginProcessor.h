@@ -219,6 +219,9 @@ public:
         params.push_back(std::make_unique<juce::AudioParameterInt>(
             juce::ParameterID{"MIDI_NOTE_MAX", 1}, "MIDI Note Max", 0, 127, 127));
 
+        params.push_back(std::make_unique<juce::AudioParameterBool>(
+            juce::ParameterID{"MIDI_OCTAVE_LOCK", 1}, "Octave Lock", false));
+
         // --- MIDI Output: Articulation ---
         params.push_back(std::make_unique<juce::AudioParameterChoice>(
             juce::ParameterID{"MIDI_RETRIGGER", 1}, "Retrigger Mode",
@@ -234,6 +237,10 @@ public:
 
         params.push_back(std::make_unique<juce::AudioParameterFloat>(
             juce::ParameterID{"MIDI_TRANSIENT_HOLD", 1}, "Transient Hold",
+            juce::NormalisableRange<float>(20.0f, 500.0f, 1.0f, 0.3f), 50.0f));
+
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID{"MIDI_MIN_NOTE_DUR", 1}, "Min Note Duration",
             juce::NormalisableRange<float>(20.0f, 500.0f, 1.0f, 0.3f), 50.0f));
 
         // --- MIDI Output: Pitch Bend ---

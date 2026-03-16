@@ -88,6 +88,7 @@ namespace DSP
             int midiTranspose = 0;        // -24 to +24 semitones
             int midiNoteMin = 0;          // 0-127
             int midiNoteMax = 127;        // 0-127
+            bool midiOctaveLock = false;  // wrap notes into range by shifting octaves
 
             // Articulation
             int midiRetrigger = 0;        // 0=Retrigger, 1=Legato
@@ -96,6 +97,7 @@ namespace DSP
             // Transient-gated retrigger
             float midiTransientSens = 50.0f;   // 0-100%: higher = needs bigger transient
             float midiTransientHoldMs = 50.0f;  // 20-500ms: min time between retriggers
+            float midiMinNoteDurationMs = 50.0f; // 20-500ms: minimum note-on duration before allowing note-off
 
             // Pitch bend
             bool midiPitchBend = false;
@@ -197,8 +199,11 @@ namespace DSP
                 midiTransposeSemis    = params.midiTranspose;
                 midiNoteMinVal        = params.midiNoteMin;
                 midiNoteMaxVal        = params.midiNoteMax;
+                midiOctaveLockOn      = params.midiOctaveLock;
                 midiRetriggerMode     = params.midiRetrigger;
                 midiNoteHoldOn        = params.midiNoteHold;
+                midiMinNoteDurationSamps = std::max (1, static_cast<int> (
+                    sampleRate * params.midiMinNoteDurationMs * 0.001));
                 midiPitchBendOn       = params.midiPitchBend;
                 midiPitchBendSemis    = params.midiPitchBendRange;
                 midiCCOn              = params.midiCCEnable;
@@ -330,6 +335,7 @@ namespace DSP
 
                 midiEvents.clear();
                 for (auto& n : currentMidiNote) n = 0;
+                for (auto& c : noteOnCooldown) c = 0;
                 for (auto& p : pendingNoteOffNote) p = 0;
                 for (auto& p : pendingNoteOffChan) p = 1;
                 for (auto& p : pendingNoteOffCount) p = 0;
@@ -718,6 +724,10 @@ namespace DSP
             void emitMidiFromTrackedNote (int voiceIndex, bool active, SampleType freq,
                                           SampleType inputLevel, int samplePos, bool isOnset)
             {
+                // Tick minimum-note-duration cooldown
+                if (noteOnCooldown[voiceIndex] > 0)
+                    --noteOnCooldown[voiceIndex];
+
                 // Input gate
                 if (inputLevel < midiGateLinear)
                     active = false;
@@ -733,7 +743,23 @@ namespace DSP
                     newNote = std::clamp (static_cast<int> (std::round (exactMidi)), 0, 127);
                     newNote = quantizeToScale (newNote);
                     if (newNote < midiNoteMinVal || newNote > midiNoteMaxVal)
-                        newNote = 0;
+                    {
+                        if (midiOctaveLockOn && midiNoteMaxVal > midiNoteMinVal)
+                        {
+                            // Shift by octaves until in range
+                            while (newNote < midiNoteMinVal && newNote + 12 <= 127)
+                                newNote += 12;
+                            while (newNote > midiNoteMaxVal && newNote - 12 >= 0)
+                                newNote -= 12;
+                            // If still out of range after shifting, discard
+                            if (newNote < midiNoteMinVal || newNote > midiNoteMaxVal)
+                                newNote = 0;
+                        }
+                        else
+                        {
+                            newNote = 0;
+                        }
+                    }
                 }
 
                 // Note hold: keep last note active even when input goes silent
@@ -786,6 +812,16 @@ namespace DSP
                 }
                 else
                 {
+                    return;
+                }
+
+                // Minimum note duration: suppress note-off/retrigger during cooldown
+                if (noteOnCooldown[voiceIndex] > 0 && doNoteOff)
+                {
+                    // Still in cooldown — keep current note, allow pitch bend
+                    if (doNoteOn && newNote > 0 && midiPitchBendOn)
+                        emitPitchBendRelative (channel, static_cast<SampleType> (exactMidi),
+                                               currentMidiNote[voiceIndex], samplePos);
                     return;
                 }
 
@@ -848,6 +884,7 @@ namespace DSP
                     midiActivityVelocity.store (vel, std::memory_order_relaxed);
 
                     currentMidiNote[voiceIndex] = newNote;
+                    noteOnCooldown[voiceIndex] = midiMinNoteDurationSamps;
                 }
                 else if (doNoteOff)
                 {
@@ -959,8 +996,10 @@ namespace DSP
             int  midiTransposeSemis = 0;
             int  midiNoteMinVal = 0;
             int  midiNoteMaxVal = 127;
+            bool midiOctaveLockOn = false;
             int  midiRetriggerMode = 0;
             bool midiNoteHoldOn = false;
+            int  midiMinNoteDurationSamps = 2205;
             bool midiPitchBendOn = false;
             int  midiPitchBendSemis = 2;
             bool midiCCOn = false;
@@ -970,6 +1009,7 @@ namespace DSP
             // MIDI runtime state
             std::vector<MidiEvent> midiEvents;
             int   currentMidiNote[maxVoices] = {};
+            int   noteOnCooldown[maxVoices] = {};  // samples remaining before note-off allowed
             int   pendingNoteOffNote[maxVoices] = {};
             int   pendingNoteOffChan[maxVoices] = {};
             int   pendingNoteOffCount[maxVoices] = {};

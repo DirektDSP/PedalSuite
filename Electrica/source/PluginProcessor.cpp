@@ -129,10 +129,12 @@ static DSP::Core::ElectricaParams loadParams (juce::AudioProcessorValueTreeState
     p.midiTranspose       = static_cast<int> (apvts.getRawParameterValue ("MIDI_TRANSPOSE")->load());
     p.midiNoteMin         = static_cast<int> (apvts.getRawParameterValue ("MIDI_NOTE_MIN")->load());
     p.midiNoteMax         = static_cast<int> (apvts.getRawParameterValue ("MIDI_NOTE_MAX")->load());
+    p.midiOctaveLock      = apvts.getRawParameterValue ("MIDI_OCTAVE_LOCK")->load() >= 0.5f;
     p.midiRetrigger       = static_cast<int> (apvts.getRawParameterValue ("MIDI_RETRIGGER")->load());
     p.midiNoteHold        = apvts.getRawParameterValue ("MIDI_NOTE_HOLD")->load() >= 0.5f;
     p.midiTransientSens   = apvts.getRawParameterValue ("MIDI_TRANSIENT_SENS")->load();
     p.midiTransientHoldMs = apvts.getRawParameterValue ("MIDI_TRANSIENT_HOLD")->load();
+    p.midiMinNoteDurationMs = apvts.getRawParameterValue ("MIDI_MIN_NOTE_DUR")->load();
     p.midiPitchBend       = apvts.getRawParameterValue ("MIDI_PITCHBEND")->load() >= 0.5f;
     {
         int pbIdx = static_cast<int> (apvts.getRawParameterValue ("MIDI_PITCHBEND_RANGE")->load());
