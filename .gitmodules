@@ -29,3 +29,6 @@
 [submodule "modules/cycfi_infra"]
 	path = modules/cycfi_infra
 	url = https://github.com/cycfi/infra.git
+[submodule "modules/DirektDSP_GUI"]
+	path = modules/DirektDSP_GUI
+	url = https://github.com/DirektDSP/DirektDSP_GUI.git

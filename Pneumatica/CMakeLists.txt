@@ -64,6 +64,7 @@ target_compile_definitions(${PEDAL_NAME}_SharedCode
 
 target_link_libraries(${PEDAL_NAME}_SharedCode
     INTERFACE
+    DirektDSP_GUI
     melatonin_inspector
     juce_audio_utils
     juce_audio_processors

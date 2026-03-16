@@ -1,19 +1,15 @@
 #pragma once
 
 #include "PluginProcessor.h"
-#include <juce_gui_basics/juce_gui_basics.h>
+#include <DirektBaseEditor.h>
 
-class PluginEditor : public juce::AudioProcessorEditor
+class PluginEditor : public DirektDSP::DirektBaseEditor
 {
 public:
     explicit PluginEditor (PluginProcessor&);
-    ~PluginEditor() override;
-
-    void paint (juce::Graphics&) override;
-    void resized() override;
 
 private:
-    PluginProcessor& processorRef;
+    static std::vector<DirektDSP::SectionDescriptor> createDescriptors();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PluginEditor)
 };

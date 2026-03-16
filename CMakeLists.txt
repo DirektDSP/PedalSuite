@@ -23,6 +23,7 @@ add_subdirectory(JUCE)
 # Shared modules (moonbase is handled per-pedal via PedalMoonbase)
 add_subdirectory(modules/clap-juce-extensions EXCLUDE_FROM_ALL)
 add_subdirectory(modules/melatonin_inspector)
+add_subdirectory(modules/DirektDSP_GUI)
 
 # Per-pedal moonbase setup helper
 include(PedalMoonbase)
