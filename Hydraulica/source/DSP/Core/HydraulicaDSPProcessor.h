@@ -2,6 +2,7 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_dsp/juce_dsp.h>
+#include <atomic>
 
 #include "../Utils/DSPUtils.h"
 #include "../Utils/ParameterSmoother.h"
@@ -112,6 +113,27 @@ namespace DSP
                 limiter.setThreshold (params.limiterCeiling);
             }
 
+            // ===== Debug overlay data (audio thread writes, GUI timer reads) =====
+            struct DebugData
+            {
+                std::atomic<float> gainReductionDbL { 0.0f };
+                std::atomic<float> gainReductionDbR { 0.0f };
+                std::atomic<float> envelopeLevelL   { 0.0f };
+                std::atomic<float> envelopeLevelR   { 0.0f };
+                std::atomic<float> doomMix          { 0.0f };
+                std::atomic<float> inputLevelL      { 0.0f };
+                std::atomic<float> inputLevelR      { 0.0f };
+                std::atomic<float> outputLevelL     { 0.0f };
+                std::atomic<float> outputLevelR     { 0.0f };
+                std::atomic<bool>  limiterActive     { false };
+
+                static constexpr int historySize = 256;
+                std::atomic<float> grHistory[historySize] {};
+                std::atomic<int>   grHistoryWritePos { 0 };
+            };
+
+            DebugData debugData;
+
             void processBlock (juce::AudioBuffer<SampleType>& buffer)
             {
                 jassert (buffer.getNumChannels() >= 1);
@@ -189,8 +211,35 @@ namespace DSP
                         result *= makeup;
 
                         wetBuffer.setSample (ch, i, result);
+
+                        // Debug data (write at end of last sample in block for ch 0/1)
+                        if (i == numSamples - 1)
+                        {
+                            if (ch == 0)
+                            {
+                                debugData.gainReductionDbL.store (static_cast<float> (gainReductionDb), std::memory_order_relaxed);
+                                debugData.envelopeLevelL.store (static_cast<float> (envLevel), std::memory_order_relaxed);
+                                debugData.inputLevelL.store (static_cast<float> (std::abs (wetBuffer.getSample (0, 0))), std::memory_order_relaxed);
+                            }
+                            else
+                            {
+                                debugData.gainReductionDbR.store (static_cast<float> (gainReductionDb), std::memory_order_relaxed);
+                                debugData.envelopeLevelR.store (static_cast<float> (envLevel), std::memory_order_relaxed);
+                            }
+                            debugData.doomMix.store (static_cast<float> (doomAmount), std::memory_order_relaxed);
+                        }
                     }
                 }
+
+                // GR history for scrolling graph
+                {
+                    float grAvg = debugData.gainReductionDbL.load (std::memory_order_relaxed);
+                    int wp = debugData.grHistoryWritePos.load (std::memory_order_relaxed);
+                    debugData.grHistory[wp].store (grAvg, std::memory_order_relaxed);
+                    debugData.grHistoryWritePos.store ((wp + 1) % DebugData::historySize, std::memory_order_relaxed);
+                }
+
+                debugData.limiterActive.store (limiterEnabled, std::memory_order_relaxed);
 
                 // Brick-wall limiter
                 if (limiterEnabled)

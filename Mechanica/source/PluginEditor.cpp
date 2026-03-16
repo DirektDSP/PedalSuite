@@ -5,6 +5,15 @@ PluginEditor::PluginEditor (PluginProcessor& p)
                         "Mechanica", DirektDSP::Colours::accentOrange,
                         16.0f / 10.0f, 800, createDescriptors())
 {
+    debugBtn.setColour (juce::TextButton::buttonColourId, juce::Colour (0xFF8B0000));
+    debugBtn.setColour (juce::TextButton::textColourOffId, juce::Colours::white);
+    debugBtn.onClick = [this, &p] {
+        if (debugOverlay == nullptr)
+            debugOverlay = std::make_unique<DebugOverlay> (p.getDSPProcessor().debugData);
+        showPopup ("Debug Overlay", debugOverlay.get(), 400, 250);
+    };
+    addAndMakeVisible (debugBtn);
+
     setSize (800, 500);
 }
 
@@ -34,8 +43,11 @@ void PluginEditor::layoutCustomSections (juce::Rectangle<int> mainArea)
     preEqSection->setBounds (eqLeft.reduced (2));
     postEqSection->setBounds (eqArea.reduced (2));
 
-    // Bottom controls
-    bottomSection->setBounds (area.reduced (0, 2));
+    // Bottom controls — leave space for debug button
+    auto btnW = 60;
+    auto bottomRow = area;
+    bottomSection->setBounds (bottomRow.withTrimmedRight (btnW + 4).reduced (0, 2));
+    debugBtn.setBounds (bottomRow.removeFromRight (btnW).reduced (2));
 }
 
 std::vector<DirektDSP::SectionDescriptor> PluginEditor::createDescriptors()

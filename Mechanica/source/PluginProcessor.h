@@ -46,6 +46,7 @@ public:
     AudioProcessorValueTreeState& getApvts() { return apvts; }
 
     Service::PresetManager& getPresetManager() { return *presetManager; }
+    DSP::FloatProcessor& getDSPProcessor() { return dspProcessor; }
 
     juce::AudioProcessorValueTreeState apvts;
 

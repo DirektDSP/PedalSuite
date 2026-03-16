@@ -2,6 +2,7 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_dsp/juce_dsp.h>
+#include <atomic>
 
 #include "../Utils/DSPUtils.h"
 #include "../Utils/ParameterSmoother.h"
@@ -129,6 +130,22 @@ namespace DSP
                 feedbackProc.updateParameters (params.feedback, params.feedbackTone);
             }
 
+            // ===== Debug overlay data =====
+            struct DebugData
+            {
+                std::atomic<int>   waveshaperType    { 0 };
+                std::atomic<int>   activeStages      { 1 };
+                std::atomic<int>   oversamplingRate   { 0 };   // 0=Off, 1=2x, 2=4x, 3=8x
+                std::atomic<float> driveLevel        { 0.0f }; // linear
+                std::atomic<float> inputLevelL       { 0.0f };
+                std::atomic<float> outputLevelL      { 0.0f };
+                std::atomic<bool>  gateOpenL         { true };
+                std::atomic<bool>  gateOpenR         { true };
+                std::atomic<float> feedbackAmount    { 0.0f };
+            };
+
+            DebugData debugData;
+
             void processBlock (juce::AudioBuffer<SampleType>& buffer)
             {
                 jassert (buffer.getNumChannels() >= 1);
@@ -202,6 +219,11 @@ namespace DSP
                         feedbackProc.writeSample (ch, wetBuffer.getSample (ch, i));
                 }
 
+                // Debug snapshot
+                debugData.waveshaperType.store (static_cast<int> (currentWaveshaper), std::memory_order_relaxed);
+                debugData.activeStages.store (currentStages, std::memory_order_relaxed);
+                debugData.oversamplingRate.store (currentOversamplingIndex, std::memory_order_relaxed);
+
                 // Mix dry/wet and apply output gain
                 for (int i = 0; i < numSamples; ++i)
                 {
@@ -216,6 +238,10 @@ namespace DSP
                         channelData[i] = (drySample * (SampleType { 1.0 } - mix) + wetSample * mix) * outputGain;
                     }
                 }
+
+                // Debug output level
+                if (buffer.getNumSamples() > 0)
+                    debugData.outputLevelL.store (static_cast<float> (std::abs (buffer.getSample (0, 0))), std::memory_order_relaxed);
             }
 
             void reset (SampleType inputGainDb = SampleType{0.0},

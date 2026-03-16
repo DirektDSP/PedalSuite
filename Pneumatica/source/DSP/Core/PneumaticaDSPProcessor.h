@@ -2,6 +2,7 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_dsp/juce_dsp.h>
+#include <atomic>
 
 #include "../Utils/DSPUtils.h"
 #include "../Utils/ParameterSmoother.h"
@@ -106,6 +107,21 @@ namespace DSP
                     *airShelf[ch].coefficients = *airCoeffs;
             }
 
+            // ===== Debug overlay data =====
+            struct DebugData
+            {
+                std::atomic<float> lowBandLevelL   { 0.0f };
+                std::atomic<float> highBandLevelL  { 0.0f };
+                std::atomic<float> lowBandLevelR   { 0.0f };
+                std::atomic<float> highBandLevelR  { 0.0f };
+                std::atomic<float> inputLevelL     { 0.0f };
+                std::atomic<float> outputLevelL    { 0.0f };
+                std::atomic<float> noiseLevel      { 0.0f };
+                std::atomic<float> saturationLevel { 0.0f };
+            };
+
+            DebugData debugData;
+
             void processBlock (juce::AudioBuffer<SampleType>& buffer)
             {
                 jassert (buffer.getNumChannels() >= 1);
@@ -172,6 +188,16 @@ namespace DSP
                     wetBuffer.setSample (0, i, lowL + highL);
                     if (isStereo)
                         wetBuffer.setSample (1, i, lowR + highR);
+
+                    // Debug data (last sample)
+                    if (i == numSamples - 1)
+                    {
+                        debugData.lowBandLevelL.store (static_cast<float> (std::abs (lowL)), std::memory_order_relaxed);
+                        debugData.highBandLevelL.store (static_cast<float> (std::abs (highL)), std::memory_order_relaxed);
+                        debugData.lowBandLevelR.store (static_cast<float> (std::abs (lowR)), std::memory_order_relaxed);
+                        debugData.highBandLevelR.store (static_cast<float> (std::abs (highR)), std::memory_order_relaxed);
+                        debugData.noiseLevel.store (static_cast<float> (std::abs (noise)), std::memory_order_relaxed);
+                    }
                 }
 
                 // Mix dry/wet and apply output gain
