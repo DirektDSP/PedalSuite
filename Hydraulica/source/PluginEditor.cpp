@@ -5,6 +5,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
                         "Hydraulica", DirektDSP::Colours::accentRed,
                         16.0f / 10.0f, 700, createDescriptors())
 {
+    setSize (700, 438);
 }
 
 void PluginEditor::layoutCustomSections (juce::Rectangle<int> mainArea)

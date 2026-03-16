@@ -5,6 +5,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
                         "Mechanica", DirektDSP::Colours::accentOrange,
                         16.0f / 10.0f, 800, createDescriptors())
 {
+    setSize (800, 500);
 }
 
 void PluginEditor::layoutCustomSections (juce::Rectangle<int> mainArea)

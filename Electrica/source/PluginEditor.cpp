@@ -22,6 +22,8 @@ PluginEditor::PluginEditor (PluginProcessor& p)
         showPopup ("Advanced Tracking", advancedPopupContent.get(), 400, 200);
     };
     addAndMakeVisible (advancedBtn);
+
+    setSize (900, 563);
 }
 
 void PluginEditor::layoutCustomSections (juce::Rectangle<int> mainArea)

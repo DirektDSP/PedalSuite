@@ -5,6 +5,7 @@ PluginEditor::PluginEditor (PluginProcessor& p)
                         "Pneumatica", DirektDSP::Colours::accentCyan,
                         16.0f / 10.0f, 700, createDescriptors())
 {
+    setSize (700, 438);
 }
 
 std::vector<DirektDSP::SectionDescriptor> PluginEditor::createDescriptors()
