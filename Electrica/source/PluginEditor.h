@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PluginProcessor.h"
+#include "DebugOverlay.h"
 #include <DirektBaseEditor.h>
 #include <DirektAutoLayout.h>
 
@@ -50,6 +51,9 @@ private:
 
     juce::TextButton midiSettingsBtn  { "MIDI Settings" };
     juce::TextButton advancedBtn      { "Advanced" };
+    juce::TextButton debugBtn         { "Debug" };
+
+    std::unique_ptr<DebugOverlay> debugOverlay;
 
     std::unique_ptr<PopupContentPanel> midiPopupContent;
     std::unique_ptr<PopupContentPanel> advancedPopupContent;

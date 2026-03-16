@@ -47,6 +47,8 @@ public:
 
     Service::PresetManager& getPresetManager() { return *presetManager; }
 
+    DSP::FloatProcessor& getDSPProcessor() { return dspProcessor; }
+
     juce::AudioProcessorValueTreeState apvts;
 
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()

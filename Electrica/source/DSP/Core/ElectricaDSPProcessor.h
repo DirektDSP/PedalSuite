@@ -296,6 +296,28 @@ namespace DSP
             const std::vector<MidiEvent>& getMidiEvents() const { return midiEvents; }
             void clearMidiEvents() { midiEvents.clear(); }
 
+            // ===== Debug overlay data (audio thread writes, GUI timer reads) =====
+            struct DebugData
+            {
+                std::atomic<float> rawDetectedFreq     { 0.0f };
+                std::atomic<float> pitchConfidence      { 0.0f };
+                std::atomic<float> lockedFreq           { 0.0f };
+                std::atomic<int>   noteTrackerState     { 0 };   // 0=Silence,1=Onset,2=Sustain,3=Release
+                std::atomic<int>   onsetCounter         { 0 };   // increments on each onset
+
+                std::atomic<int>   inputNotePreQuantize { -1 };
+                std::atomic<int>   outputNotePostQuantize{ -1 };
+
+                std::atomic<float> polyPeakFreq[6]   { {0},{0},{0},{0},{0},{0} };
+                std::atomic<bool>  polyPeakActive[6]  { {false},{false},{false},{false},{false},{false} };
+
+                static constexpr int historySize = 256;
+                std::atomic<float> pitchHistory[historySize] {};
+                std::atomic<int>   pitchHistoryWritePos { 0 };
+            };
+
+            DebugData debugData;
+
             // Readable from GUI thread for MIDI activity display
             std::atomic<int>   midiActivityNote    { -1 };
             std::atomic<int>   midiActivityChannel { 0 };
@@ -391,6 +413,19 @@ namespace DSP
 
                     auto tracked = noteTracker.process (detectedFreq, pitchConfidence, onset);
 
+                    // Debug data for overlay
+                    debugData.rawDetectedFreq.store (static_cast<float> (detectedFreq), std::memory_order_relaxed);
+                    debugData.pitchConfidence.store (static_cast<float> (pitchConfidence), std::memory_order_relaxed);
+                    debugData.lockedFreq.store (static_cast<float> (tracked.frequency), std::memory_order_relaxed);
+                    debugData.noteTrackerState.store (noteTracker.getStateAsInt(), std::memory_order_relaxed);
+                    if (onset)
+                        debugData.onsetCounter.fetch_add (1, std::memory_order_relaxed);
+                    {
+                        int wp = debugData.pitchHistoryWritePos.load (std::memory_order_relaxed);
+                        debugData.pitchHistory[wp].store (static_cast<float> (detectedFreq), std::memory_order_relaxed);
+                        debugData.pitchHistoryWritePos.store ((wp + 1) % DebugData::historySize, std::memory_order_relaxed);
+                    }
+
                     if (tracked.noteActive && tracked.frequency > SampleType (0))
                     {
                         auto synthFreq = constrainFrequencyToRange (tracked.frequency);
@@ -474,10 +509,13 @@ namespace DSP
 
                     for (int b = 0; b < FFTPeakDetector<SampleType>::maxPeaks; ++b)
                     {
-                        if (peakResults[static_cast<size_t> (b)].active
-                            && peakResults[static_cast<size_t> (b)].frequency > SampleType (0))
+                        auto sz = static_cast<size_t> (b);
+                        debugData.polyPeakFreq[sz].store (static_cast<float> (peakResults[sz].frequency), std::memory_order_relaxed);
+                        debugData.polyPeakActive[sz].store (peakResults[sz].active, std::memory_order_relaxed);
+
+                        if (peakResults[sz].active && peakResults[sz].frequency > SampleType (0))
                         {
-                            auto synthFreq = constrainFrequencyToRange (peakResults[static_cast<size_t> (b)].frequency);
+                            auto synthFreq = constrainFrequencyToRange (peakResults[sz].frequency);
                             if (synthFreq > SampleType (0))
                                 voices[b].setTargetFrequency (synthFreq);
                         }
@@ -790,7 +828,9 @@ namespace DSP
                     exactMidi = static_cast<float> (SampleType (69) + SampleType (12) * std::log2 (freq / SampleType (440)));
                     exactMidi += static_cast<float> (midiTransposeSemis);
                     newNote = std::clamp (static_cast<int> (std::round (exactMidi)), 0, 127);
+                    debugData.inputNotePreQuantize.store (newNote, std::memory_order_relaxed);
                     newNote = quantizeToScale (newNote);
+                    debugData.outputNotePostQuantize.store (newNote, std::memory_order_relaxed);
                     if (newNote < midiNoteMinVal || newNote > midiNoteMaxVal)
                     {
                         if (midiOctaveLockOn && midiNoteMaxVal > midiNoteMinVal)

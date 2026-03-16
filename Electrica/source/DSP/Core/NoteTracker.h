@@ -167,6 +167,8 @@ public:
         return result;
     }
 
+    int getStateAsInt() const { return static_cast<int> (state); }
+
     void reset()
     {
         state = State::Silence;

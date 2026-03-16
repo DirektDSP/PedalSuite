@@ -23,6 +23,20 @@ PluginEditor::PluginEditor (PluginProcessor& p)
     };
     addAndMakeVisible (advancedBtn);
 
+    debugBtn.setColour (juce::TextButton::buttonColourId, juce::Colour (0xFF8B0000));
+    debugBtn.setColour (juce::TextButton::textColourOffId, juce::Colours::white);
+    debugBtn.onClick = [this, &p] {
+        if (debugOverlay == nullptr)
+        {
+            auto& dsp = p.getDSPProcessor();
+            debugOverlay = std::make_unique<DebugOverlay> (
+                dsp.debugData, dsp.midiActivityNote,
+                dsp.midiActivityChannel, dsp.midiActivityVelocity);
+        }
+        showPopup ("Debug Overlay", debugOverlay.get(), 500, 400);
+    };
+    addAndMakeVisible (debugBtn);
+
     setSize (900, 563);
 }
 
@@ -71,8 +85,10 @@ void PluginEditor::layoutCustomSections (juce::Rectangle<int> mainArea)
 
     // Buttons in remaining space
     auto btnArea = row4.reduced (4);
-    midiSettingsBtn.setBounds (btnArea.removeFromTop (btnArea.getHeight() / 2).reduced (2));
-    advancedBtn.setBounds (btnArea.reduced (2));
+    int btnH = btnArea.getHeight() / 3;
+    midiSettingsBtn.setBounds (btnArea.removeFromTop (btnH).reduced (2));
+    advancedBtn.setBounds (btnArea.removeFromTop (btnH).reduced (2));
+    debugBtn.setBounds (btnArea.reduced (2));
 }
 
 void PluginEditor::buildMidiPopup()
