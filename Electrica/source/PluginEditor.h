@@ -2,8 +2,7 @@
 
 #include "PluginProcessor.h"
 #include "DebugOverlay.h"
-#include <DirektBaseEditor.h>
-#include <DirektAutoLayout.h>
+#include <DirektDSP.h>
 
 // Simple resizable container that lays out DirektSections in a grid
 class PopupContentPanel : public juce::Component

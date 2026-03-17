@@ -2,7 +2,7 @@
 
 #include "PluginProcessor.h"
 #include "DebugOverlay.h"
-#include <DirektBaseEditor.h>
+#include <DirektDSP.h>
 
 class PluginEditor : public DirektDSP::DirektBaseEditor
 {
