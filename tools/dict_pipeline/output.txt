@@ -1,0 +1,8 @@
+NSynth test set already exists at ./datasets/nsynth/nsynth-test/, skipping.
+Iowa MIS piano already exists at ./datasets/iowa_mis/, skipping.
+=== Downloading VocalSet (~1.4GB) ===
+Extracting VocalSet...
+VocalSet ready at ./datasets/vocalset/
+
+=== All datasets ready in ./datasets ===
+Run: python build_dictionaries.py --datasets-dir ./datasets
