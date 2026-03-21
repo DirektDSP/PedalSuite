@@ -147,6 +147,14 @@ public:
             juce::NormalisableRange<float>(-80.0f, -10.0f, 0.1f), -40.0f));
 
         params.push_back(std::make_unique<juce::AudioParameterChoice>(
+            juce::ParameterID{"POLY_ALGO", 1}, "Poly Algorithm",
+            juce::StringArray{"Peak Detection", "Sparse Dictionary"}, 0));
+
+        params.push_back(std::make_unique<juce::AudioParameterChoice>(
+            juce::ParameterID{"POLY_INSTRUMENT", 1}, "Poly Instrument",
+            juce::StringArray{"Guitar", "Keyboard", "Voice", "Synthetic"}, 0));
+
+        params.push_back(std::make_unique<juce::AudioParameterChoice>(
             juce::ParameterID{"PITCH_ALGO", 1}, "Pitch Algorithm",
             juce::StringArray{"MPM", "Cycfi Q"}, 0));
 

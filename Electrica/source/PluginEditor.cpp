@@ -160,11 +160,12 @@ void PluginEditor::buildAdvancedPopup()
 
     std::vector<DirektDSP::SectionDescriptor> advDescriptors = {
         { "Advanced Tracking", {
-            { "YIN_WINDOW",      "Det. Window",    CT::Knob },
-            { "YIN_THRESHOLD",   "Tolerance",      CT::Knob },
-            { "CONFIDENCE_GATE", "Confidence Gate", CT::Knob },
-            { "POLY_PEAK_GATE",  "Poly Peak Gate", CT::Knob },
-        }, 4 },
+            { "YIN_WINDOW",       "Det. Window",    CT::Knob },
+            { "YIN_THRESHOLD",    "Tolerance",      CT::Knob },
+            { "CONFIDENCE_GATE",  "Confidence Gate", CT::Knob },
+            { "POLY_PEAK_GATE",   "Poly Peak Gate", CT::Knob },
+            { "POLY_INSTRUMENT",  "Poly Instrument", CT::ComboBox },
+        }, 5 },
     };
 
     advancedSections = DirektDSP::DirektAutoLayout::buildSections (apvtsRef, advDescriptors);
@@ -209,12 +210,13 @@ std::vector<DirektDSP::SectionDescriptor> PluginEditor::createDescriptors()
         }, 2 },
 
         { "Tracking", {
-            { "GLIDE",        "Glide",  CT::Knob },
-            { "TRACKING",     "Mode",   CT::ComboBox },
-            { "SNAP_TO_NOTE", "Snap",   CT::Toggle },
-            { "PITCH_ALGO",   "Algo",   CT::ComboBox },
-            { "INPUT_MODE",   "Input",  CT::ComboBox },
-        }, 5 },
+            { "GLIDE",        "Glide",     CT::Knob },
+            { "TRACKING",     "Mode",      CT::ComboBox },
+            { "SNAP_TO_NOTE", "Snap",      CT::Toggle },
+            { "PITCH_ALGO",   "Algo",      CT::ComboBox },
+            { "POLY_ALGO",    "Poly Algo", CT::ComboBox },
+            { "INPUT_MODE",   "Input",     CT::ComboBox },
+        }, 6 },
 
         { "Common", {
             { "INPUT_GAIN",  "Input",  CT::Knob },

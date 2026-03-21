@@ -60,3 +60,7 @@ moonbase_api_config.json
 
 # Temporary artifacts
 compass_artifact_*.md
+
+# Dictionary pipeline
+tools/dict_pipeline/.venv/
+tools/dict_pipeline/datasets/

@@ -12,6 +12,7 @@
 #include "NoteTracker.h"
 #include "PolyphonicTracker.h"
 #include "FFTPeakDetector.h"
+#include "SparsePitchDetector.h"
 #include "SynthVoice.h"
 #include <vector>
 #include <atomic>
@@ -57,6 +58,8 @@ namespace DSP
             float glide = 20.0f;
             int tracking = 0;          // 0 = mono, 1 = poly
             float polyPeakGateDb = -40.0f;  // -80 to -10 dB: amplitude gate for FFT peak detection
+            int polyAlgorithm = 0;     // 0 = Peak Detection, 1 = Sparse Dictionary
+            int polyInstrument = 0;    // 0 = Guitar, 1 = Keyboard, 2 = Voice, 3 = Synthetic
             int pitchAlgorithm = 0;    // 0 = MPM, 1 = Cycfi Q
             bool snapToNote = false;
             float yinWindowMs = 20.0f;
@@ -169,6 +172,7 @@ namespace DSP
                 // Polyphonic trackers
                 polyTracker.prepare (sampleRate, samplesPerBlock);
                 fftPeakDetector.prepare (sampleRate, samplesPerBlock);
+                sparsePitchDetector.prepare (sampleRate, samplesPerBlock);
 
                 // All voices
                 for (auto& v : voices)
@@ -243,8 +247,10 @@ namespace DSP
 
                 noteTracker.updateParameters (params.confidenceGate, 30.0f, 40.0f,
                                               params.snapToNote, inputMode);
+                polyAlgorithm = params.polyAlgorithm;
                 polyTracker.updateParameters (params.confidenceGate, params.snapToNote);
                 fftPeakDetector.updateParameters (params.polyPeakGateDb);
+                sparsePitchDetector.updateParameters (params.polyPeakGateDb, params.polyInstrument);
 
                 for (auto& v : voices)
                     v.updateParameters (params.oscWave, params.oscOctave, params.oscDetune,
@@ -348,6 +354,7 @@ namespace DSP
                 noteTracker.reset();
                 polyTracker.reset();
                 fftPeakDetector.reset();
+                sparsePitchDetector.reset();
                 smoothedPeriodicity = SampleType (0);
                 spectralFluxMidiMean = 0.0f;
                 spectralFluxMidiHoldCounter = 0;
@@ -503,19 +510,42 @@ namespace DSP
                         monoIn += buffer.getSample (ch, i) * inputGain;
                     monoIn /= static_cast<SampleType> (numCh);
 
-                    // FFT peak detector — updates internally at hop boundaries
-                    fftPeakDetector.pushSample (monoIn);
-                    const auto& peakResults = fftPeakDetector.getResults();
+                    // Poly detector — push sample to selected algorithm
+                    if (polyAlgorithm == 1)
+                        sparsePitchDetector.pushSample (monoIn);
+                    else
+                        fftPeakDetector.pushSample (monoIn);
 
-                    for (int b = 0; b < FFTPeakDetector<SampleType>::maxPeaks; ++b)
+                    // Read results from whichever detector is active into a
+                    // uniform local array so downstream code stays the same.
+                    struct PolyPeak { SampleType freq; SampleType amp; bool on; };
+                    std::array<PolyPeak, maxVoices> polyPeaks;
+                    if (polyAlgorithm == 1)
+                    {
+                        const auto& sr = sparsePitchDetector.getResults();
+                        for (int b = 0; b < maxVoices; ++b)
+                            polyPeaks[static_cast<size_t> (b)] = { sr[static_cast<size_t> (b)].frequency,
+                                                                     sr[static_cast<size_t> (b)].amplitude,
+                                                                     sr[static_cast<size_t> (b)].active };
+                    }
+                    else
+                    {
+                        const auto& pr = fftPeakDetector.getResults();
+                        for (int b = 0; b < maxVoices; ++b)
+                            polyPeaks[static_cast<size_t> (b)] = { pr[static_cast<size_t> (b)].frequency,
+                                                                     pr[static_cast<size_t> (b)].amplitude,
+                                                                     pr[static_cast<size_t> (b)].active };
+                    }
+
+                    for (int b = 0; b < maxVoices; ++b)
                     {
                         auto sz = static_cast<size_t> (b);
-                        debugData.polyPeakFreq[sz].store (static_cast<float> (peakResults[sz].frequency), std::memory_order_relaxed);
-                        debugData.polyPeakActive[sz].store (peakResults[sz].active, std::memory_order_relaxed);
+                        debugData.polyPeakFreq[sz].store (static_cast<float> (polyPeaks[sz].freq), std::memory_order_relaxed);
+                        debugData.polyPeakActive[sz].store (polyPeaks[sz].on, std::memory_order_relaxed);
 
-                        if (peakResults[sz].active && peakResults[sz].frequency > SampleType (0))
+                        if (polyPeaks[sz].on && polyPeaks[sz].freq > SampleType (0))
                         {
-                            auto synthFreq = constrainFrequencyToRange (peakResults[sz].frequency);
+                            auto synthFreq = constrainFrequencyToRange (polyPeaks[sz].freq);
                             if (synthFreq > SampleType (0))
                                 voices[b].setTargetFrequency (synthFreq);
                         }
@@ -533,14 +563,14 @@ namespace DSP
 
                         tickPendingNoteOffs (i);
 
-                        for (int b = 0; b < FFTPeakDetector<SampleType>::maxPeaks; ++b)
+                        for (int b = 0; b < maxVoices; ++b)
                         {
-                            bool bandActive = peakResults[static_cast<size_t> (b)].active;
+                            bool bandActive = polyPeaks[static_cast<size_t> (b)].on;
                             bool bandSilenceToSound = bandActive && ! prevPolyActive[b];
                             prevPolyActive[b] = bandActive;
 
                             emitMidiFromTrackedNote (b, bandActive,
-                                peakResults[static_cast<size_t> (b)].frequency,
+                                polyPeaks[static_cast<size_t> (b)].freq,
                                 inputLevel, i, midiOnset || bandSilenceToSound);
                         }
 
@@ -552,9 +582,9 @@ namespace DSP
                         SampleType synthSum = SampleType (0);
                         int activeCount = 0;
 
-                        for (int b = 0; b < FFTPeakDetector<SampleType>::maxPeaks; ++b)
+                        for (int b = 0; b < maxVoices; ++b)
                         {
-                            bool bandOn = peakResults[static_cast<size_t> (b)].active;
+                            bool bandOn = polyPeaks[static_cast<size_t> (b)].on;
                             // Feed zero input level to inactive voices so their
                             // envelope closes naturally instead of sustaining.
                             synthSum += voices[b].processSample (bandOn ? inputLevel : SampleType (0));
@@ -1049,12 +1079,14 @@ namespace DSP
             NoteTracker<SampleType> noteTracker;
             PolyphonicTracker<SampleType> polyTracker;
             FFTPeakDetector<SampleType> fftPeakDetector;
+            SparsePitchDetector<SampleType> sparsePitchDetector;
 
             // Synth voices
             SynthVoice<SampleType> voices[maxVoices];
 
             int inputMode = 0;       // 0=Guitar, 1=Vocal
             int trackingMode = 0;
+            int polyAlgorithm = 0;   // 0=Peak Detection, 1=Sparse Dictionary
             int pitchAlgorithm = 0;
             bool snapToNote = false;
             SampleType confidenceGate = SampleType (0.3);

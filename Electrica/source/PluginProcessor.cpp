@@ -109,6 +109,8 @@ static DSP::Core::ElectricaParams loadParams (juce::AudioProcessorValueTreeState
     p.inputMode       = static_cast<int> (apvts.getRawParameterValue ("INPUT_MODE")->load());
     p.glide           = apvts.getRawParameterValue ("GLIDE")->load();
     p.tracking        = static_cast<int> (apvts.getRawParameterValue ("TRACKING")->load());
+    p.polyAlgorithm   = static_cast<int> (apvts.getRawParameterValue ("POLY_ALGO")->load());
+    p.polyInstrument  = static_cast<int> (apvts.getRawParameterValue ("POLY_INSTRUMENT")->load());
     p.pitchAlgorithm  = static_cast<int> (apvts.getRawParameterValue ("PITCH_ALGO")->load());
     p.snapToNote      = apvts.getRawParameterValue ("SNAP_TO_NOTE")->load() >= 0.5f;
     p.yinWindowMs     = apvts.getRawParameterValue ("YIN_WINDOW")->load();
