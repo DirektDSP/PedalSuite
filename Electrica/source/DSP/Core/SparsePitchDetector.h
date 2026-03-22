@@ -164,10 +164,14 @@ private:
 
         auto dictPtr = DictData::getDictionary (inst);
 
-        // The generated dictionaries use dictCropBins (512).
-        // Our runtime cropBins may differ if sampleRate != 44100.
-        // Use whichever is smaller.
-        int usableBins = std::min (cropBins, dictCropBins);
+        // The generated dictionaries were built at 44100 Hz with bin resolution
+        // = 44100/4096 ≈ 10.77 Hz.  If the runtime sample rate differs, bin k
+        // maps to a different frequency.  We resample the dictionary via linear
+        // interpolation so that each runtime bin gets the correct spectral energy.
+        static constexpr float dictSampleRate = 44100.0f;
+        float dictBinRes = dictSampleRate / static_cast<float> (fftSize);
+        float liveBinRes = binResolution; // = sampleRate / fftSize
+        bool needResample = (std::abs (liveBinRes - dictBinRes) > 0.01f);
 
         dictionary.resize (static_cast<size_t> (dictSize));
         dictFreqs.resize (static_cast<size_t> (dictSize));
@@ -181,16 +185,53 @@ private:
 
             if (dictPtr != nullptr)
             {
-                // Copy from generated dictionary, zero-pad if cropBins > dictCropBins
-                for (int k = 0; k < usableBins; ++k)
-                    dictionary[static_cast<size_t> (n)][static_cast<size_t> (k)]
-                        = dictPtr[n][k];
-                for (int k = usableBins; k < cropBins; ++k)
-                    dictionary[static_cast<size_t> (n)][static_cast<size_t> (k)] = 0.0f;
+                if (needResample)
+                {
+                    // Resample: for each runtime bin k, find the corresponding
+                    // position in the dictionary's bin space and linearly interpolate.
+                    for (int k = 0; k < cropBins; ++k)
+                    {
+                        float freq = static_cast<float> (k) * liveBinRes;
+                        float dictBinF = freq / dictBinRes;
+                        int lo = static_cast<int> (dictBinF);
+                        float frac = dictBinF - static_cast<float> (lo);
+
+                        float val = 0.0f;
+                        if (lo >= 0 && lo < dictCropBins)
+                            val += (1.0f - frac) * dictPtr[n][lo];
+                        if (lo + 1 >= 0 && lo + 1 < dictCropBins)
+                            val += frac * dictPtr[n][lo + 1];
+
+                        dictionary[static_cast<size_t> (n)][static_cast<size_t> (k)] = val;
+                    }
+
+                    // Re-normalize after resampling
+                    float norm = 0.0f;
+                    for (int k = 0; k < cropBins; ++k)
+                        norm += dictionary[static_cast<size_t> (n)][static_cast<size_t> (k)]
+                              * dictionary[static_cast<size_t> (n)][static_cast<size_t> (k)];
+                    norm = std::sqrt (norm);
+                    if (norm > 1e-10f)
+                    {
+                        float invNorm = 1.0f / norm;
+                        for (int k = 0; k < cropBins; ++k)
+                            dictionary[static_cast<size_t> (n)][static_cast<size_t> (k)] *= invNorm;
+                    }
+                }
+                else
+                {
+                    // Same sample rate — direct copy
+                    int usableBins = std::min (cropBins, dictCropBins);
+                    for (int k = 0; k < usableBins; ++k)
+                        dictionary[static_cast<size_t> (n)][static_cast<size_t> (k)]
+                            = dictPtr[n][k];
+                    for (int k = usableBins; k < cropBins; ++k)
+                        dictionary[static_cast<size_t> (n)][static_cast<size_t> (k)] = 0.0f;
+                }
             }
             else
             {
-                // Synthetic fallback
+                // Synthetic fallback — already frequency-correct for any sample rate
                 buildSyntheticAtom (midiNote, dictionary[static_cast<size_t> (n)]);
             }
         }
