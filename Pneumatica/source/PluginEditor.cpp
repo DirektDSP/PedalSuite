@@ -60,31 +60,31 @@ std::vector<DirektDSP::SectionDescriptor> PluginEditor::createDescriptors()
     using CT = DirektDSP::ControlType;
     return {
         { "Crossover / Width / Shimmer", {
-            { "CROSSOVER", "Crossover", CT::Knob },
-            { "WIDTH",     "Width",     CT::Knob },
-            { "SHIMMER",   "Shimmer",   CT::Knob },
+            { "CROSSOVER", "Crossover", CT::Knob, "Crossover frequency — processing applies above this point" },
+            { "WIDTH",     "Width",     CT::Knob, "Stereo width of the high-frequency band" },
+            { "SHIMMER",   "Shimmer",   CT::Knob, "Shimmer amount — adds pitched octave reflections to highs" },
         }, 3 },
 
         { "Crunch", {
-            { "CRUNCH",      "Amount",     CT::Knob },
-            { "CRUNCH_TYPE", "Type",       CT::ComboBox },
+            { "CRUNCH",      "Amount",     CT::Knob,     "High-frequency saturation amount — adds crunch and edge" },
+            { "CRUNCH_TYPE", "Type",       CT::ComboBox, "Saturation type applied to the high band" },
         }, 2 },
 
         { "Noise", {
-            { "NOISE_LEVEL",  "Level",  CT::Knob },
-            { "NOISE_TYPE",   "Type",   CT::ComboBox },
-            { "NOISE_FILTER", "Filter", CT::Knob },
+            { "NOISE_LEVEL",  "Level",  CT::Knob,     "Noise generator level — adds analog-style hiss and texture" },
+            { "NOISE_TYPE",   "Type",   CT::ComboBox, "Noise color (White, Pink, etc.)" },
+            { "NOISE_FILTER", "Filter", CT::Knob,     "Low-pass filter on the noise — shapes the noise character" },
         }, 3 },
 
         { "Air EQ", {
-            { "AIR_FREQ", "Freq", CT::Knob },
-            { "AIR_GAIN", "Gain", CT::Knob },
+            { "AIR_FREQ", "Freq", CT::Knob, "Air band center frequency — high shelf for presence and sparkle" },
+            { "AIR_GAIN", "Gain", CT::Knob, "Air band gain — boost or cut the top-end sheen" },
         }, 2 },
 
         { "Common", {
-            { "INPUT_GAIN",  "Input",  CT::Knob },
-            { "OUTPUT_GAIN", "Output", CT::Knob },
-            { "MIX",         "Mix",    CT::Knob },
+            { "INPUT_GAIN",  "Input",  CT::Knob, "Input gain before processing" },
+            { "OUTPUT_GAIN", "Output", CT::Knob, "Output gain after processing" },
+            { "MIX",         "Mix",    CT::Knob, "Dry/wet mix — 0% = clean, 100% = fully processed" },
         }, 3 },
     };
 }

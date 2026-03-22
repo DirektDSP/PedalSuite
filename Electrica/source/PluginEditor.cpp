@@ -97,52 +97,52 @@ void PluginEditor::buildMidiPopup()
 
     std::vector<DirektDSP::SectionDescriptor> midiDescriptors = {
         { "Enable & Channel", {
-            { "MIDI_OUT",          "MIDI Output",   CT::Toggle },
-            { "MIDI_CHANNEL",      "Channel",       CT::Knob },
-            { "MIDI_POLY_SPREAD",  "Poly Spread",   CT::Toggle },
+            { "MIDI_OUT",          "MIDI Output",   CT::Toggle, "Enable MIDI note output from pitch tracking" },
+            { "MIDI_CHANNEL",      "Channel",       CT::Knob,   "MIDI output channel (1-16)" },
+            { "MIDI_POLY_SPREAD",  "Poly Spread",   CT::Toggle, "Spread polyphonic voices across consecutive MIDI channels" },
         }, 3 },
 
         { "Velocity", {
-            { "MIDI_VEL_OVERRIDE", "Override",  CT::Toggle },
-            { "MIDI_VEL_VALUE",    "Value",     CT::Knob },
-            { "MIDI_VEL_CURVE",    "Curve",     CT::ComboBox },
+            { "MIDI_VEL_OVERRIDE", "Override",  CT::Toggle,   "Override detected velocity with a fixed value" },
+            { "MIDI_VEL_VALUE",    "Value",     CT::Knob,     "Fixed velocity value when override is enabled" },
+            { "MIDI_VEL_CURVE",    "Curve",     CT::ComboBox, "Velocity response curve shape" },
         }, 3 },
 
         { "Scale Lock", {
-            { "MIDI_SCALE_LOCK", "Lock",  CT::Toggle },
-            { "MIDI_SCALE_ROOT", "Root",  CT::ComboBox },
-            { "MIDI_SCALE_TYPE", "Scale", CT::ComboBox },
+            { "MIDI_SCALE_LOCK", "Lock",  CT::Toggle,   "Quantize detected notes to the selected scale" },
+            { "MIDI_SCALE_ROOT", "Root",  CT::ComboBox, "Root note of the scale" },
+            { "MIDI_SCALE_TYPE", "Scale", CT::ComboBox, "Scale type (Major, Minor, Pentatonic, etc.)" },
         }, 3 },
 
         { "Gate & Timing", {
-            { "MIDI_GATE",         "Gate",           CT::Knob },
-            { "MIDI_NOTEOFF_DELAY","Note-Off Delay", CT::Knob },
-            { "MIDI_MIN_NOTE_DUR", "Min Duration",   CT::Knob },
+            { "MIDI_GATE",         "Gate",           CT::Knob, "Input level threshold for triggering MIDI notes" },
+            { "MIDI_NOTEOFF_DELAY","Note-Off Delay", CT::Knob, "Delay before sending note-off after signal drops" },
+            { "MIDI_MIN_NOTE_DUR", "Min Duration",   CT::Knob, "Minimum note duration — prevents rapid retriggers" },
         }, 3 },
 
         { "Transpose & Range", {
-            { "MIDI_TRANSPOSE",   "Transpose", CT::Knob },
-            { "MIDI_NOTE_MIN",    "Note Min",  CT::Knob },
-            { "MIDI_NOTE_MAX",    "Note Max",  CT::Knob },
-            { "MIDI_OCTAVE_LOCK", "Oct Lock",  CT::Toggle },
+            { "MIDI_TRANSPOSE",   "Transpose", CT::Knob,   "Transpose MIDI output in semitones" },
+            { "MIDI_NOTE_MIN",    "Note Min",  CT::Knob,   "Lowest allowed MIDI note number" },
+            { "MIDI_NOTE_MAX",    "Note Max",  CT::Knob,   "Highest allowed MIDI note number" },
+            { "MIDI_OCTAVE_LOCK", "Oct Lock",  CT::Toggle, "Lock output to a single octave range" },
         }, 4 },
 
         { "Articulation", {
-            { "MIDI_RETRIGGER",      "Retrigger",      CT::ComboBox },
-            { "MIDI_NOTE_HOLD",      "Note Hold",      CT::Toggle },
-            { "MIDI_TRANSIENT_SENS", "Transient Sens",  CT::Knob },
-            { "MIDI_TRANSIENT_HOLD", "Transient Hold",  CT::Knob },
+            { "MIDI_RETRIGGER",      "Retrigger",      CT::ComboBox, "When to retrigger notes (on new pitch, on transient, etc.)" },
+            { "MIDI_NOTE_HOLD",      "Note Hold",      CT::Toggle,   "Hold notes until a new pitch is detected" },
+            { "MIDI_TRANSIENT_SENS", "Transient Sens",  CT::Knob,    "Sensitivity of the transient detector for retriggers" },
+            { "MIDI_TRANSIENT_HOLD", "Transient Hold",  CT::Knob,    "Hold time after a transient before allowing retrigger" },
         }, 4 },
 
         { "Pitch Bend", {
-            { "MIDI_PITCHBEND",       "Enable",  CT::Toggle },
-            { "MIDI_PITCHBEND_RANGE", "Range",   CT::ComboBox },
+            { "MIDI_PITCHBEND",       "Enable",  CT::Toggle,   "Send pitch bend messages for smooth pitch transitions" },
+            { "MIDI_PITCHBEND_RANGE", "Range",   CT::ComboBox, "Pitch bend range in semitones (must match synth setting)" },
         }, 2 },
 
         { "CC Output", {
-            { "MIDI_CC_ENABLE", "Enable",    CT::Toggle },
-            { "MIDI_CC_NUMBER", "CC #",      CT::Knob },
-            { "MIDI_CC_SMOOTH", "Smoothing", CT::Knob },
+            { "MIDI_CC_ENABLE", "Enable",    CT::Toggle, "Send input envelope as a MIDI CC message" },
+            { "MIDI_CC_NUMBER", "CC #",      CT::Knob,   "MIDI CC number to send envelope data on" },
+            { "MIDI_CC_SMOOTH", "Smoothing", CT::Knob,   "Smoothing applied to CC output to reduce jitter" },
         }, 3 },
     };
 
@@ -160,11 +160,11 @@ void PluginEditor::buildAdvancedPopup()
 
     std::vector<DirektDSP::SectionDescriptor> advDescriptors = {
         { "Advanced Tracking", {
-            { "YIN_WINDOW",       "Det. Window",    CT::Knob },
-            { "YIN_THRESHOLD",    "Tolerance",      CT::Knob },
-            { "CONFIDENCE_GATE",  "Confidence Gate", CT::Knob },
-            { "POLY_PEAK_GATE",   "Poly Peak Gate", CT::Knob },
-            { "POLY_INSTRUMENT",  "Poly Instrument", CT::ComboBox },
+            { "YIN_WINDOW",       "Det. Window",     CT::Knob,     "Detection window size in ms — larger = more accurate but higher latency" },
+            { "YIN_THRESHOLD",    "Tolerance",       CT::Knob,     "Pitch detection tolerance — lower = stricter, fewer false notes" },
+            { "CONFIDENCE_GATE",  "Confidence Gate", CT::Knob,     "Minimum confidence to accept a pitch — raise to reject uncertain detections" },
+            { "POLY_PEAK_GATE",   "Poly Peak Gate",  CT::Knob,     "Threshold for spectral peaks in polyphonic mode — raise to reduce ghost notes" },
+            { "POLY_INSTRUMENT",  "Poly Instrument", CT::ComboBox, "Spectral dictionary for polyphonic detection (match to your instrument)" },
         }, 5 },
     };
 
@@ -181,47 +181,47 @@ std::vector<DirektDSP::SectionDescriptor> PluginEditor::createDescriptors()
     using CT = DirektDSP::ControlType;
     return {
         { "Oscillator", {
-            { "OSC_WAVE",   "Wave",   CT::ComboBox },
-            { "OSC_OCTAVE", "Octave", CT::Knob },
-            { "OSC_DETUNE", "Detune", CT::Knob },
-            { "OSC_LEVEL",  "Level",  CT::Knob },
+            { "OSC_WAVE",   "Wave",   CT::ComboBox, "Synth oscillator waveform (Sine, Saw, Square, Triangle)" },
+            { "OSC_OCTAVE", "Octave", CT::Knob,     "Oscillator octave offset from detected pitch" },
+            { "OSC_DETUNE", "Detune", CT::Knob,     "Fine detune in cents — adds thickness" },
+            { "OSC_LEVEL",  "Level",  CT::Knob,     "Synth oscillator volume level" },
         }, 4 },
 
         { "Envelope", {
-            { "ENV_ATTACK",      "Attack",      CT::Knob },
-            { "ENV_RELEASE",     "Release",     CT::Knob },
-            { "ENV_SENSITIVITY", "Sensitivity", CT::Knob },
+            { "ENV_ATTACK",      "Attack",      CT::Knob, "Synth amplitude attack time" },
+            { "ENV_RELEASE",     "Release",     CT::Knob, "Synth amplitude release time" },
+            { "ENV_SENSITIVITY", "Sensitivity", CT::Knob, "How closely the synth envelope follows input dynamics" },
         }, 3 },
 
         { "Filter", {
-            { "FILTER_TYPE", "Type", CT::ComboBox },
-            { "FILTER_FREQ", "Freq", CT::Knob },
-            { "FILTER_RESO", "Reso", CT::Knob },
+            { "FILTER_TYPE", "Type", CT::ComboBox, "Filter type (Low-pass, High-pass, Band-pass)" },
+            { "FILTER_FREQ", "Freq", CT::Knob,     "Filter cutoff frequency" },
+            { "FILTER_RESO", "Reso", CT::Knob,     "Filter resonance — adds emphasis at the cutoff" },
         }, 3 },
 
         { "Distortion", {
-            { "DIST_DRIVE", "Drive", CT::Knob },
-            { "DIST_TYPE",  "Type",  CT::ComboBox },
+            { "DIST_DRIVE", "Drive", CT::Knob,     "Distortion drive amount applied to the synth signal" },
+            { "DIST_TYPE",  "Type",  CT::ComboBox, "Distortion waveshaper type" },
         }, 2 },
 
         { "Compressor", {
-            { "COMP_AMOUNT", "Amount", CT::Knob },
-            { "COMP_SPEED",  "Speed",  CT::ComboBox },
+            { "COMP_AMOUNT", "Amount", CT::Knob,     "Compression amount — evens out synth dynamics" },
+            { "COMP_SPEED",  "Speed",  CT::ComboBox, "Compressor response speed (Fast, Medium, Slow)" },
         }, 2 },
 
         { "Tracking", {
-            { "GLIDE",        "Glide",     CT::Knob },
-            { "TRACKING",     "Mode",      CT::ComboBox },
-            { "SNAP_TO_NOTE", "Snap",      CT::Toggle },
-            { "PITCH_ALGO",   "Algo",      CT::ComboBox },
-            { "POLY_ALGO",    "Poly Algo", CT::ComboBox },
-            { "INPUT_MODE",   "Input",     CT::ComboBox },
+            { "GLIDE",        "Glide",     CT::Knob,     "Portamento time between detected pitches" },
+            { "TRACKING",     "Mode",      CT::ComboBox, "Tracking mode — Mono (single voice) or Poly (up to 6 voices)" },
+            { "SNAP_TO_NOTE", "Snap",      CT::Toggle,   "Quantize tracked pitch to nearest semitone" },
+            { "PITCH_ALGO",   "Algo",      CT::ComboBox, "Mono pitch detection algorithm (MPM or Cycfi Q)" },
+            { "POLY_ALGO",    "Poly Algo", CT::ComboBox, "Polyphonic detection algorithm" },
+            { "INPUT_MODE",   "Input",     CT::ComboBox, "Input routing (Mono L, Mono R, Stereo sum)" },
         }, 6 },
 
         { "Common", {
-            { "INPUT_GAIN",  "Input",  CT::Knob },
-            { "OUTPUT_GAIN", "Output", CT::Knob },
-            { "MIX",         "Mix",    CT::Knob },
+            { "INPUT_GAIN",  "Input",  CT::Knob, "Input gain before processing" },
+            { "OUTPUT_GAIN", "Output", CT::Knob, "Output gain after processing" },
+            { "MIX",         "Mix",    CT::Knob, "Dry/wet mix — 0% = clean signal, 100% = synth only" },
         }, 3 },
     };
 }

@@ -55,38 +55,38 @@ std::vector<DirektDSP::SectionDescriptor> PluginEditor::createDescriptors()
     using CT = DirektDSP::ControlType;
     return {
         { "Drive", {
-            { "DRIVE",        "Drive",        CT::Knob },
-            { "WAVESHAPER",   "Waveshaper",   CT::ComboBox },
-            { "BIAS",         "Bias",         CT::Knob },
-            { "ASYMMETRY",    "Asymmetry",    CT::Knob },
-            { "STAGES",       "Stages",       CT::Knob },
-            { "OVERSAMPLING", "Oversampling", CT::ComboBox },
+            { "DRIVE",        "Drive",        CT::Knob,     "Distortion drive amount" },
+            { "WAVESHAPER",   "Waveshaper",   CT::ComboBox, "Waveshaper algorithm (Tanh, Hard Clip, Fold, etc.)" },
+            { "BIAS",         "Bias",         CT::Knob,     "DC bias offset — shifts the signal into asymmetric clipping" },
+            { "ASYMMETRY",    "Asymmetry",    CT::Knob,     "Positive/negative clipping asymmetry — adds even harmonics" },
+            { "STAGES",       "Stages",       CT::Knob,     "Number of cascaded distortion stages" },
+            { "OVERSAMPLING", "Oversampling", CT::ComboBox, "Oversampling factor — reduces aliasing at higher CPU cost" },
         }, 6 },
 
         { "Pre-EQ", {
-            { "PRE_LOW",      "Low",  CT::Knob },
-            { "PRE_MID",      "Mid",  CT::Knob },
-            { "PRE_MID_FREQ", "Freq", CT::Knob },
-            { "PRE_MID_Q",    "Q",    CT::Knob },
-            { "PRE_HIGH",     "High", CT::Knob },
+            { "PRE_LOW",      "Low",  CT::Knob, "Low shelf gain before distortion" },
+            { "PRE_MID",      "Mid",  CT::Knob, "Mid band gain before distortion" },
+            { "PRE_MID_FREQ", "Freq", CT::Knob, "Pre-distortion mid band center frequency" },
+            { "PRE_MID_Q",    "Q",    CT::Knob, "Pre-distortion mid band Q (narrowness)" },
+            { "PRE_HIGH",     "High", CT::Knob, "High shelf gain before distortion" },
         }, 5 },
 
         { "Post-EQ", {
-            { "POST_LOW",      "Low",  CT::Knob },
-            { "POST_MID",      "Mid",  CT::Knob },
-            { "POST_MID_FREQ", "Freq", CT::Knob },
-            { "POST_MID_Q",    "Q",    CT::Knob },
-            { "POST_HIGH",     "High", CT::Knob },
+            { "POST_LOW",      "Low",  CT::Knob, "Low shelf gain after distortion" },
+            { "POST_MID",      "Mid",  CT::Knob, "Mid band gain after distortion" },
+            { "POST_MID_FREQ", "Freq", CT::Knob, "Post-distortion mid band center frequency" },
+            { "POST_MID_Q",    "Q",    CT::Knob, "Post-distortion mid band Q (narrowness)" },
+            { "POST_HIGH",     "High", CT::Knob, "High shelf gain after distortion" },
         }, 5 },
 
         { "Controls", {
-            { "FEEDBACK",       "Feedback",  CT::Knob },
-            { "FEEDBACK_TONE",  "Tone",      CT::Knob },
-            { "GATE_THRESHOLD", "Gate",      CT::Knob },
-            { "GATE_RELEASE",   "Gate Rel",  CT::Knob },
-            { "INPUT_GAIN",     "Input",     CT::Knob },
-            { "OUTPUT_GAIN",    "Output",    CT::Knob },
-            { "MIX",            "Mix",       CT::Knob },
+            { "FEEDBACK",       "Feedback",  CT::Knob, "Routes output back into input — adds overtones and chaos" },
+            { "FEEDBACK_TONE",  "Tone",      CT::Knob, "Low-pass filter on the feedback path" },
+            { "GATE_THRESHOLD", "Gate",      CT::Knob, "Noise gate threshold — mutes signal below this level" },
+            { "GATE_RELEASE",   "Gate Rel",  CT::Knob, "Noise gate release time" },
+            { "INPUT_GAIN",     "Input",     CT::Knob, "Input gain before processing" },
+            { "OUTPUT_GAIN",    "Output",    CT::Knob, "Output gain after processing" },
+            { "MIX",            "Mix",       CT::Knob, "Dry/wet mix — 0% = clean, 100% = distorted" },
         }, 7 },
     };
 }

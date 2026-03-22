@@ -51,25 +51,25 @@ std::vector<DirektDSP::SectionDescriptor> PluginEditor::createDescriptors()
     using CT = DirektDSP::ControlType;
     return {
         { "Doom", {
-            { "DOOM", "DOOM", CT::Knob },
+            { "DOOM", "DOOM", CT::Knob, "The DOOM knob — extreme normalizer that brings everything to the same level" },
         }, 1 },
 
         { "Compressor", {
-            { "THRESHOLD", "Threshold", CT::Knob },
-            { "RATIO",     "Ratio",     CT::Knob },
-            { "ATTACK",    "Attack",    CT::Knob },
-            { "RELEASE",   "Release",   CT::Knob },
-            { "KNEE",      "Knee",      CT::Knob },
-            { "MAKEUP",    "Makeup",    CT::Knob },
+            { "THRESHOLD", "Threshold", CT::Knob, "Compressor threshold — signal above this gets compressed" },
+            { "RATIO",     "Ratio",     CT::Knob, "Compression ratio — higher = more aggressive compression" },
+            { "ATTACK",    "Attack",    CT::Knob, "Compressor attack time — how fast it reacts to loud transients" },
+            { "RELEASE",   "Release",   CT::Knob, "Compressor release time — how fast gain recovers after compression" },
+            { "KNEE",      "Knee",      CT::Knob, "Compressor knee — soft knee eases into compression, hard knee is abrupt" },
+            { "MAKEUP",    "Makeup",    CT::Knob, "Makeup gain to compensate for compression-induced volume loss" },
         }, 6 },
 
         { "Controls", {
-            { "SC_HPF",          "SC HPF",   CT::Knob },
-            { "LIMITER_ON",      "Limiter",  CT::Toggle },
-            { "LIMITER_CEILING", "Ceiling",  CT::Knob },
-            { "INPUT_GAIN",      "Input",    CT::Knob },
-            { "OUTPUT_GAIN",     "Output",   CT::Knob },
-            { "MIX",             "Mix",      CT::Knob },
+            { "SC_HPF",          "SC HPF",   CT::Knob,   "Sidechain high-pass filter — prevents low frequencies from triggering compression" },
+            { "LIMITER_ON",      "Limiter",  CT::Toggle,  "Enable output brickwall limiter" },
+            { "LIMITER_CEILING", "Ceiling",  CT::Knob,    "Limiter ceiling — maximum output level" },
+            { "INPUT_GAIN",      "Input",    CT::Knob,    "Input gain before processing" },
+            { "OUTPUT_GAIN",     "Output",   CT::Knob,    "Output gain after processing" },
+            { "MIX",             "Mix",      CT::Knob,    "Dry/wet mix — blend compressed and clean signals (parallel compression)" },
         }, 6 },
     };
 }
