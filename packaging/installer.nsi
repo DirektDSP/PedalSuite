@@ -20,20 +20,61 @@ OutFile "${OUTDIR}\DirektDSP-PedalSuite-${VERSION}-Windows.exe"
 InstallDir "$PROGRAMFILES64\DirektDSP\PedalSuite"
 RequestExecutionLevel admin
 Unicode True
+BrandingText "DirektDSP PedalSuite ${VERSION}"
 
+;----------------------------------------------------------------------
+; MUI2 Appearance
+;----------------------------------------------------------------------
+
+; Icons
+!define MUI_ICON "icon.ico"
+!define MUI_UNICON "icon.ico"
+
+; Header image (top banner on most pages)
+!define MUI_HEADERIMAGE
+!define MUI_HEADERIMAGE_BITMAP "header.bmp"
+!define MUI_HEADERIMAGE_RIGHT
+
+; Welcome / Finish page sidebar image
+!define MUI_WELCOMEFINISHPAGE_BITMAP "welcome.bmp"
+!define MUI_UNWELCOMEFINISHPAGE_BITMAP "welcome.bmp"
+
+; Abort warning
 !define MUI_ABORTWARNING
-!define MUI_WELCOMEPAGE_TITLE "DirektDSP PedalSuite ${VERSION}"
-!define MUI_WELCOMEPAGE_TEXT "This will install the DirektDSP PedalSuite audio plugins on your computer.$\r$\n$\r$\nPlugins included:$\r$\n  - Mechanica (Distortion)$\r$\n  - Hydraulica (Compressor)$\r$\n  - Pneumatica (High-End Tweaker)$\r$\n  - Electrica (Synth Pedal)$\r$\n$\r$\nClick Next to continue."
+!define MUI_ABORTWARNING_TEXT "Are you sure you want to cancel the DirektDSP PedalSuite installation?"
 
+;----------------------------------------------------------------------
+; Welcome Page
+;----------------------------------------------------------------------
+
+!define MUI_WELCOMEPAGE_TITLE "Welcome to DirektDSP PedalSuite ${VERSION}"
+!define MUI_WELCOMEPAGE_TEXT "This will install the DirektDSP PedalSuite audio plugins on your computer.$\r$\n$\r$\nPlugins included:$\r$\n$\r$\n    Mechanica — Distortion$\r$\n    Hydraulica — Compressor$\r$\n    Pneumatica — High-End Tweaker$\r$\n    Electrica — Synth Pedal$\r$\n$\r$\nClick Next to continue."
+
+;----------------------------------------------------------------------
+; Finish Page
+;----------------------------------------------------------------------
+
+!define MUI_FINISHPAGE_TITLE "Installation Complete"
+!define MUI_FINISHPAGE_TEXT "DirektDSP PedalSuite ${VERSION} has been installed successfully.$\r$\n$\r$\nThank you for choosing DirektDSP! Load up your DAW and look for the plugins under the DirektDSP manufacturer.$\r$\n$\r$\nFor documentation, presets, and updates, visit our website."
+!define MUI_FINISHPAGE_LINK "Visit direktdsp.com"
+!define MUI_FINISHPAGE_LINK_LOCATION "https://direktdsp.com"
+!define MUI_FINISHPAGE_NOREBOOTSUPPORT
+
+;----------------------------------------------------------------------
 ; Pages
+;----------------------------------------------------------------------
+
 !insertmacro MUI_PAGE_WELCOME
+!insertmacro MUI_PAGE_LICENSE "LICENSE.txt"
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
 
+!insertmacro MUI_UNPAGE_WELCOME
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
+!insertmacro MUI_UNPAGE_FINISH
 
 !insertmacro MUI_LANGUAGE "English"
 
@@ -138,6 +179,8 @@ Section "-Uninstaller"
     "Publisher" "DirektDSP"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\DirektDSP-PedalSuite" \
     "DisplayVersion" "${VERSION}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\DirektDSP-PedalSuite" \
+    "DisplayIcon" "$INSTDIR\Uninstall-PedalSuite.exe"
 SectionEnd
 
 ;----------------------------------------------------------------------
@@ -146,8 +189,20 @@ SectionEnd
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${SecVST3} "VST3 plugins — installed to the system VST3 folder."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecMechanicaVST3} "Mechanica — tweakable distortion with waveshapers, EQ, gate, and feedback."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecHydraulicaVST3} "Hydraulica — doom-style compressor with extreme gain reduction."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecPneumaticaVST3} "Pneumatica — high-end tweaker adding width, crunch, and shimmer."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecElectricaVST3} "Electrica — synth pedal with pitch tracking, oscillator, filter, and distortion."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecCLAP} "CLAP plugins — installed to the system CLAP folder."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecMechanicaCLAP} "Mechanica — tweakable distortion with waveshapers, EQ, gate, and feedback."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecHydraulicaCLAP} "Hydraulica — doom-style compressor with extreme gain reduction."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecPneumaticaCLAP} "Pneumatica — high-end tweaker adding width, crunch, and shimmer."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecElectricaCLAP} "Electrica — synth pedal with pitch tracking, oscillator, filter, and distortion."
   !insertmacro MUI_DESCRIPTION_TEXT ${SecStandalone} "Standalone applications — installed to the program folder."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecMechanicaSA} "Mechanica standalone application."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecHydraulicaSA} "Hydraulica standalone application."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecPneumaticaSA} "Pneumatica standalone application."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecElectricaSA} "Electrica standalone application."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 ;----------------------------------------------------------------------

@@ -1,0 +1,30 @@
+DirektDSP PedalSuite - End User License Agreement
+
+Copyright (c) 2024-2026 DirektDSP. All rights reserved.
+
+By installing this software, you agree to the following terms:
+
+1. LICENSE GRANT
+   DirektDSP grants you a non-exclusive, non-transferable license to use
+   the PedalSuite audio plugins for personal and commercial music production.
+
+2. RESTRICTIONS
+   You may not reverse engineer, decompile, or disassemble this software.
+   You may not redistribute, sublicense, or resell this software.
+
+3. INTELLECTUAL PROPERTY
+   All rights, title, and interest in PedalSuite remain with DirektDSP.
+
+4. DISCLAIMER OF WARRANTY
+   This software is provided "as is" without warranty of any kind, express
+   or implied.
+
+5. LIMITATION OF LIABILITY
+   In no event shall DirektDSP be liable for any damages arising from the
+   use of this software.
+
+6. TERMINATION
+   This license is effective until terminated. It will terminate automatically
+   if you fail to comply with any term of this agreement.
+
+For questions, contact: support@direktdsp.com
